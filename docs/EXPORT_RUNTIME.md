@@ -239,9 +239,9 @@ Drops the in-memory session slot.
 ## 6. MCP server
 
 The exported runtime also serves the harness over the Model Context Protocol
-(ADR-0005). It exposes a single generic `s2h__run` tool; it is enabled by
-default and `s2h export --no-mcp` omits it. The MCP surface uses the same
-runtime, limits, sandbox rules, and read-only defaults as the REST API.
+(ADR-0006). It exposes one tool per harness skill plus a usage prompt; it is
+enabled by default and `s2h export --no-mcp` omits it. The MCP surface uses the
+same runtime, limits, sandbox rules, and read-only defaults as the REST API.
 
 ### 6.1 Transports
 
@@ -250,62 +250,28 @@ runtime, limits, sandbox rules, and read-only defaults as the REST API.
 - **stdio** via `node dist/mcp-stdio.js` (also reachable as `s2h mcp` for a local
   harness) for desktop clients that spawn a process.
 
-### 6.2 The `s2h__run` tool
+### 6.2 Skill tools and the usage prompt
 
-One tool runs the whole harness. Its name is `<prefix>__<name>` (default
-`s2h__run`; see `S2H_MCP_TOOL_PREFIX`/`S2H_MCP_TOOL_NAME`), and its description
-is generated from `harness.json` so a model knows when to call it:
+Each harness skill becomes one MCP tool named `<prefix>__<skill_slug>` (default
+prefix `s2h`; the skill id is slugified). The tool description is generated from
+`harness.json` (title, triggers, effects) so a model knows when to call it:
 
 ```text
-Run the "<title>" harness (<name> v<version>).
-Procedures: "<trigger>" -> <skill title>; ...
-Effects: none.
+Run the "<title>" procedure. Triggers: <triggers>. Effects: <effects>.
 ```
 
 | Field | Value |
 | --- | --- |
-| Name | `<prefix>__<name>` (default `s2h__run`) |
-| Input | `{ message: string, skill?: string, sessionId?: string, context?: "turn"|"branch"|"isolated" }` |
-| Output | Answer text plus `structuredContent { harness, version, skill, route: { skill, reason }, answer, usage, inputRequired?, sessionId? }` |
+| Name | `<prefix>__<skill_slug>` (default prefix `s2h`) |
+| Input | `{ message: string, sessionId?: string }` |
+| Output | Answer text plus `structuredContent { harness, version, skill, answer }` |
 
-`skill` is an optional override; otherwise the host routes from the `AGENTS.md`
-table / `harness.json` triggers (ADR-0003).
+Each tool runs exactly one skill through the same runtime as the chat API. A
+separate `<prefix>__usage` prompt returns a general explanation of the harness
+plus the routing table mapping procedure triggers to the per-skill tool names.
 
-Registration sketch:
-
-```ts
-server.registerTool(`${prefix}__${toolName}`, {
-  title: manifest.title,
-  description: describeHarness(manifest), // title, version, procedures, effects
-  inputSchema: {
-    message: z.string().describe("Natural-language request for the harness"),
-    skill: z.string().optional().describe("Force a skill id instead of routing"),
-    sessionId: z.string().optional(),
-    context: z.enum(["turn", "branch", "isolated"]).optional(),
-  },
-  outputSchema: {
-    harness: z.string(),
-    version: z.string(),
-    skill: z.string(),
-    route: z.object({ skill: z.string(), reason: z.string() }).optional(),
-    answer: z.string(),
-    usage: z.object({ inputTokens: z.number(), outputTokens: z.number() }).optional(),
-    inputRequired: z.boolean().optional(),
-    sessionId: z.string().optional(),
-  },
-  annotations: { readOnlyHint: true, openWorldHint: false },
-}, async (args, extra) => {
-  const result = await runtime.runHarness({
-    ...args,
-    signal: extra.signal,
-    progress: progressReporter(extra), // notifications/progress when a token is present
-  });
-  return { content: [{ type: "text", text: result.answer }], structuredContent: result };
-});
-```
-
-Annotations reflect the harness: `readOnlyHint: true` unless the manifest
-reports effects; `openWorldHint: true` only when the sandbox allows egress.
+Annotations reflect the harness: `readOnlyHint: true` unless the skill reports
+effects; `openWorldHint: false`.
 
 ### 6.3 Streaming results and cancellation
 

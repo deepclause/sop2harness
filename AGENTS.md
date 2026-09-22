@@ -36,7 +36,8 @@ single entry point to the project's design.
 | [docs/DECISIONS/ADR-0002-bundle-pi-adapter.md](docs/DECISIONS/ADR-0002-bundle-pi-adapter.md) | Bundle the pi-ai adapter as the export LLM backend | accepted |
 | [docs/DECISIONS/ADR-0003-agents-md-routing.md](docs/DECISIONS/ADR-0003-agents-md-routing.md) | Host-side routing from the harness `AGENTS.md` policy table | accepted |
 | [docs/DECISIONS/ADR-0004-mcp-server-for-exported-harness.md](docs/DECISIONS/ADR-0004-mcp-server-for-exported-harness.md) | MCP server for the export (superseded) | superseded |
-| [docs/DECISIONS/ADR-0005-single-mcp-run-tool.md](docs/DECISIONS/ADR-0005-single-mcp-run-tool.md) | One generic MCP run tool that streams progress | accepted |
+| [docs/DECISIONS/ADR-0005-single-mcp-run-tool.md](docs/DECISIONS/ADR-0005-single-mcp-run-tool.md) | One generic MCP run tool that streams progress | superseded |
+| [docs/DECISIONS/ADR-0006-per-skill-mcp-tools.md](docs/DECISIONS/ADR-0006-per-skill-mcp-tools.md) | MCP exports one tool per skill plus a usage prompt | accepted |
 
 Planned documents (add a link here when written):
 
@@ -57,11 +58,10 @@ These are binding for the design unless superseded by a new ADR:
 3. **`AGENTS.md` routing (ADR-0003).** Routing is defined by the harness
    `AGENTS.md` policy table, mirrored in `harness.json.skills[].triggers`; a
    dispatcher DML is optional.
-4. **MCP server (ADR-0005, supersedes ADR-0004).** Every export also serves the
-   harness over MCP as one generic `s2h__run` tool that routes and runs the
-   harness, streaming progress notifications back; Streamable HTTP at `/mcp`
-   and a stdio entrypoint, with `ask_user` mapped to elicitation and an
-   `inputRequired` fallback.
+4. **MCP server (ADR-0006, supersedes ADR-0005).** Every export also serves the
+   harness over MCP as one tool per harness skill plus a `<prefix>__usage`
+   prompt that explains the harness and its routing table; Streamable HTTP at
+   `/mcp` and a stdio entrypoint.
 
 ## Working rules
 

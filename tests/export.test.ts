@@ -73,7 +73,7 @@ describe("exportCommand", () => {
   it("includes the MCP server by default and omits it with --no-mcp", async () => {
     const root = await tempProject();
     expect(await exportCommand(root, { out: "export" })).toBe(0);
-    await expect(readFile(path.join(root, "export", "src", "mcp.ts"), "utf8")).resolves.toContain("notifications/progress");
+    await expect(readFile(path.join(root, "export", "src", "mcp.ts"), "utf8")).resolves.toContain("registerPrompt");
     await expect(readFile(path.join(root, "export", "package.json"), "utf8")).resolves.toContain("@modelcontextprotocol/sdk");
 
     const slim = path.join(root, "slim");

@@ -8,7 +8,7 @@ Phase 3 implemented `commit` (semver bump, git commit/tag, version history).
 Phase 4 implemented `export` (standalone API server generation).
 Phase 5 implemented the exported web chat app and Docker image.
 Phase 6 implemented the AgentVM sandbox for exported shell steps.
-Phase 7 implemented the MCP server (`s2h__run` tool).
+Phase 7 implemented the MCP server (per-skill tools + usage prompt).
 The remaining commands are wired into the CLI with their documented options but
 report "not implemented yet" until their roadmap phase lands.
 
@@ -171,12 +171,11 @@ inside the VM with networking off by default, the harness mounted at
 `/mnt/harness`, a scratch `/workspace` from `S2H_SANDBOX_DIR`, and per-command
 timeout/output caps from `runtime.sandbox.limits`.
 
-The export also serves the harness over MCP as one `s2h__run` tool (ADR-0005):
-Streamable HTTP at `S2H_MCP_PATH` (default `/mcp`) plus a stdio entrypoint
-(`node dist/mcp-stdio.js`). The tool routes and runs the harness, streams
-`notifications/progress` when the client supplies a progress token, and answers
-`ask_user` through MCP's `inputRequired` fallback (re-invoke with
-`{ sessionId, answer }`).
+The export also serves the harness over MCP (ADR-0006): one tool per skill
+(`<prefix>__<skill_slug>`, default prefix `s2h`) plus a `<prefix>__usage` prompt
+that explains the harness and its routing table. Streamable HTTP at
+`S2H_MCP_PATH` (default `/mcp`) plus a stdio entrypoint
+(`node dist/mcp-stdio.js`).
 
 Phase 7 does not yet implement tagged exports (`--tag`) or the
 `openai-compatible` backend; those remain later phases.
