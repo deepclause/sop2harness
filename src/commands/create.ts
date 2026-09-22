@@ -1,5 +1,6 @@
 import path from "node:path";
 import { access, cp, mkdir, writeFile } from "node:fs/promises";
+import pc from "picocolors";
 import { resolveProject } from "../project.js";
 import { projectPaths } from "../harness/paths.js";
 import { validateHarness } from "../harness/validate.js";
@@ -39,19 +40,44 @@ async function backupSkillsForUpdate(paths: ReturnType<typeof projectPaths>): Pr
   ui.info(`Backed up existing skills to ${path.relative(paths.harnessDir, backupDir)}`);
 }
 
-function progressLine(event: AuthoringProgress): void {
-  switch (event.type) {
-    case "text":
-      process.stdout.write(event.delta);
-      break;
-    case "tool":
-      if (event.state === "start") process.stdout.write(`\n  · ${event.name}\n`);
-      else if (event.isError) process.stdout.write(`  · ${event.name} failed\n`);
-      break;
-    case "notice":
-      process.stdout.write(`\n  ! ${event.message}\n`);
-      break;
-  }
+function summarizeArgs(args: unknown): string {
+  if (!args || typeof args !== "object") return "";
+  const record = args as Record<string, unknown>;
+  const entries = Object.entries(record);
+  if (entries.length === 0) return "";
+  const parts = entries.slice(0, 4).map(([key, value]) => {
+    if (typeof value === "string" && value.length > 80) return `${key}=<${value.length} chars>`;
+    const rendered = typeof value === "string" ? value : JSON.stringify(value);
+    return `${key}=${rendered.length > 60 ? `${rendered.slice(0, 60)}…` : rendered}`;
+  });
+  if (entries.length > 4) parts.push("…");
+  return parts.join(" ");
+}
+
+function createProgressRenderer(debug: boolean): (event: AuthoringProgress) => void {
+  return (event) => {
+    switch (event.type) {
+      case "text":
+        process.stdout.write(event.delta);
+        break;
+      case "thinking":
+        if (debug) process.stdout.write(pc.dim(event.delta));
+        break;
+      case "tool":
+        if (event.state === "start") {
+          process.stdout.write(`\n${pc.dim("⚙")} ${pc.cyan(event.name)}`);
+          const args = summarizeArgs(event.args);
+          if (args) process.stdout.write(` ${pc.dim(args)}`);
+          process.stdout.write("\n");
+        } else {
+          process.stdout.write(`${event.isError ? pc.red("✗") : pc.green("✓")} ${pc.cyan(event.name)}${event.isError ? " failed" : ""}\n`);
+        }
+        break;
+      case "notice":
+        process.stdout.write(`\n${pc.yellow("!")} ${event.message}\n`);
+        break;
+    }
+  };
 }
 
 export async function createCommand(cwd: string, options: CreateOptions): Promise<number> {
@@ -103,13 +129,14 @@ export async function createCommand(cwd: string, options: CreateOptions): Promis
 
   const onProgress = options.json
     ? (event: AuthoringProgress) => process.stdout.write(`${JSON.stringify(event)}\n`)
-    : progressLine;
+    : createProgressRenderer(options.debug ?? false);
 
   let sessionFile: string | undefined;
   let modelUsed: string | undefined;
   try {
     const result = await runAuthoringSession(paths, authoringRequest, {
       model: options.model,
+      interactive: !options.headless,
       onProgress,
     });
     sessionFile = result.sessionFile;

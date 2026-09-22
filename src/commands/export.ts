@@ -221,7 +221,20 @@ if (process.env.S2H_MCP_ENABLED !== "false") {
   await writeFile(path.join(outDir, "harness.lock.json"), `${JSON.stringify(lock, null, 2)}\n`, "utf8");
 
   ui.ok(`Exported to ${outDir}`);
-  ui.info("Next: cd export && npm install && npm run build && npm start");
+  ui.section("Runtime configuration");
+  ui.info("  Model:  S2H_LLM_BACKEND=pi  S2H_LLM_PROVIDER=<provider>  S2H_LLM_MODEL=<model>");
+  ui.info("  Server: PORT, S2H_API_TOKEN, S2H_HARNESS_DIR, S2H_WEB_DIR");
+  ui.info("  Limits: S2H_MAX_CONCURRENT_RUNS, S2H_REQUEST_MAX_BYTES, S2H_RUN_TIMEOUT_MS");
+  if (includeSandbox) {
+    ui.info("  Sandbox: S2H_AGENTVM_WASM, S2H_SANDBOX_DIR, S2H_SANDBOX_NETWORK_RATE");
+  }
+  if (includeMcp) {
+    ui.info("  MCP: S2H_MCP_ENABLED, S2H_MCP_PATH, S2H_MCP_TOOL_PREFIX, S2H_MCP_TOOL_NAME");
+  }
+  ui.info("  Judge:  TYPESAFE_API_KEY (optional calibrated jev backend)");
+  ui.info("");
+  ui.info("Copy export/.env.example to export/.env, set the model provider/model, and run:");
+  ui.info("  cd export && npm install && npm run build && npm start");
   ui.info("Or: cd export && docker compose up --build");
   return 0;
 }

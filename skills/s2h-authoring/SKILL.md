@@ -132,14 +132,17 @@ agent_main(_) :-
 ## Workflow
 
 1. Read the SOP files and decompose them by procedure. Propose a short
-   section → skill map in your final report (no interactive confirmation is
-   available; proceed autonomously).
-2. Author one `.dml` skill per procedure.
-3. Update `harness.json`: add each skill and keep the existing schema/fields.
-4. Add one router row per skill to `AGENTS.md`.
-5. Self-review against the rules above (fallback clause present, paths exist,
+   section → skill map in your final report.
+2. If a decision genuinely needs the user (scope, an ambiguous procedure, or a
+   tool choice), call the `s2h_ask_user` tool with one focused question. In
+   interactive mode it returns the user's answer; in headless mode it returns
+   a default, so proceed autonomously.
+3. Author one `.dml` skill per procedure.
+4. Update `harness.json`: add each skill and keep the existing schema/fields.
+5. Add one router row per skill to `AGENTS.md`.
+6. Self-review against the rules above (fallback clause present, paths exist,
    triggers non-empty, effects match, no pi-only tools, no compiler output).
-6. Do **not** create `.deepclause/`, do not delete user files, and do not
+7. Do **not** create `.deepclause/`, do not delete user files, and do not
    overwrite a skill that already exists unless you are explicitly updating it.
 
 When finished, report the skills you created or changed and the trigger/effects
