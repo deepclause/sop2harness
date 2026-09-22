@@ -1,8 +1,12 @@
 # ADR-0004 — Expose the exported harness as an MCP server
 
-- Status: accepted
+- Status: superseded by [ADR-0005](ADR-0005-single-mcp-run-tool.md)
 - Date: 2026-09-22
 - Deciders: sop2harness maintainers
+
+> Superseded: the per-skill/helper tool and resource surface below was replaced
+> by a single generic run tool. The transport, elicitation, progress and auth
+> decisions were carried forward into ADR-0005.
 
 ## Context
 

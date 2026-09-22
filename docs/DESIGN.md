@@ -78,7 +78,7 @@ flowchart TD
   WEB -->|"HTTP/SSE"| API
   U2["API consumer / browser"] --> WEB
   U2 --> API
-  GEN --> MCP["MCP server (ADR-0004)"]
+  GEN --> MCP["MCP server (ADR-0005)"]
   MCP -->|"stdio / Streamable HTTP"| MCPC["MCP client"]
   MCP -->|"shares runtime"| API
 ```
@@ -216,7 +216,7 @@ s2h export [--out <dir>] [--tag <version>] [--llm pi|openai-compatible]
   default export is read-only.
 - Shell tools are served by the `agentvm` sandbox (ADR-0001); `--sandbox none`
   rejects shell and produces a slim image.
-- The MCP server is on by default (ADR-0004); `--no-mcp` omits it.
+- The MCP server is on by default (ADR-0005); `--no-mcp` omits it.
 - See [EXPORT_RUNTIME.md](EXPORT_RUNTIME.md).
 
 ## 7. Authoring flow (`create`)
@@ -359,9 +359,9 @@ Details are in [EXPORT_RUNTIME.md](EXPORT_RUNTIME.md). Summary:
   `AgentVM`-backed `bash` tool when the harness needs shell (ADR-0001).
 - Web: a single static chat page (vanilla JS/CSS) streaming DML events over SSE,
   with a skills sidebar and a docs viewer.
-- MCP: the same runtime is served over MCP (ADR-0004): per-skill tools plus
-  `route`/`list_skills`/`read_doc`, docs as resources, Streamable HTTP at `/mcp`
-  and a stdio entrypoint.
+- MCP: the same runtime is served over MCP (ADR-0005) as one generic
+  `s2h__run` tool that routes and runs the harness, streaming progress
+  notifications back; Streamable HTTP at `/mcp` and a stdio entrypoint.
 - Docker: multi-stage `node:22-slim`, non-root, read-only harness, healthcheck;
   the AgentVM WASM image is included only when the sandbox is enabled.
 
@@ -402,10 +402,9 @@ Rules:
   (atomic claim, as in `deepclause-pi`).
 - **Logging.** No prompt bodies or secrets in logs by default; transcripts are
   opt-in and gitignored.
-- **MCP exposure.** The MCP surface exposes only manifest skills and
-  allowlisted docs. Streamable HTTP requires the same bearer token; stdio is
-  trusted-local. Tool names are normalized and prefixed; there is no free-form
-  tool or code execution over MCP.
+- **MCP exposure.** The MCP surface exposes one run tool whose routing is
+  constrained to manifest skills. Streamable HTTP requires the same bearer token;
+  stdio is trusted-local. There is no free-form tool or code execution over MCP.
 - **Supply chain.** Minimal dependencies; lockfile committed; Docker build from
   pinned base and `npm ci`.
 
@@ -421,7 +420,7 @@ Rules:
 | Export LLM | `@earendil-works/pi-ai` adapter (ADR-0002) | Bundled default; OpenAI-compatible alternative. |
 | Sandbox | `deepclause-agentvm` (ADR-0001) | Optional WASM Alpine VM for bash; network off by default. |
 | Export HTTP | `hono` + `@hono/node-server` | Tiny, typed, SSE-capable. `node:http` fallback. |
-| MCP | `@modelcontextprotocol/sdk` (ADR-0004) | Tools, resources, elicitation; Streamable HTTP + stdio. |
+| MCP | `@modelcontextprotocol/sdk` (ADR-0005) | One generic run tool, elicitation, progress; Streamable HTTP + stdio. |
 | Web | Vanilla JS + CSS, no build step | Served statically by the server. |
 | Git | `git` via `execFile` | No heavy git library. |
 | Tests | `vitest` | Matches the siblings. |
@@ -453,7 +452,7 @@ Rules:
 | 4 | `export` runtime + API | Exported server runs a fixture harness over HTTP |
 | 5 | Web chat + Docker | One-command export builds and runs; chat streams answers |
 | 6 | AgentVM sandbox | Harness with a shell step runs bash inside AgentVM; isolation tests pass |
-| 7 | MCP server | MCP client lists tools/resources, runs a skill, and answers an elicitation |
+| 7 | MCP server | MCP client runs the single `s2h__run` tool, receives progress, and answers an elicitation |
 | 8 | Hardening | Security tests, limits, Jev, docs viewer, reproducible tagged export |
 
 ## 15. Open questions
@@ -481,9 +480,9 @@ Rules:
    add persisted conversation memory (and if so, where)?
 9. **Export image size.** The AgentVM WASM image is large; decide whether the
    sandbox ships as a separate image/tag (`s2h-export:sandbox`) or a shared base.
-10. **MCP tool granularity.** Per-skill tools (ADR-0004 default) versus a single
-    `run` tool; and the exact naming/prefixing when several harnesses are
-    deployed behind one MCP client.
+10. **MCP naming and tasks.** Tool name/prefix when several harnesses are
+    deployed behind one MCP client, and whether the MCP tasks API should back
+    long-running runs for true resumable streaming.
 11. **Elicitation fallback.** Whether the `inputRequired` + `sessionId` fallback
-    re-invokes the skill tool or a dedicated `resume` tool, and how long a
-    suspended MCP session is kept.
+    re-invokes `s2h__run` or a dedicated `resume` tool, and how long a suspended
+    MCP session is kept.

@@ -17,7 +17,7 @@ export/
     tools.ts             # PHTC + compat tools, path confinement, AgentVM sandbox
     harness.ts           # manifest load + validation, skill discovery
     router.ts            # host routing: triggers + choose/4 + optional dispatcher
-    mcp.ts               # MCP server: tools, resources, elicitation (ADR-0004)
+    mcp.ts               # MCP server: single run tool, elicitation, progress (ADR-0005)
     mcp-stdio.ts         # stdio entrypoint for desktop MCP clients
   web/
     index.html
@@ -239,9 +239,9 @@ Drops the in-memory session slot.
 ## 6. MCP server
 
 The exported runtime also serves the harness over the Model Context Protocol
-(ADR-0004). It is enabled by default; `s2h export --no-mcp` omits it. The MCP
-surface uses the same runtime, limits, sandbox rules, and read-only defaults as
-the REST API.
+(ADR-0005). It exposes a single generic `s2h__run` tool; it is enabled by
+default and `s2h export --no-mcp` omits it. The MCP surface uses the same
+runtime, limits, sandbox rules, and read-only defaults as the REST API.
 
 ### 6.1 Transports
 
@@ -250,42 +250,56 @@ the REST API.
 - **stdio** via `node dist/mcp-stdio.js` (also reachable as `s2h mcp` for a local
   harness) for desktop clients that spawn a process.
 
-### 6.2 Tools
+### 6.2 The `s2h__run` tool
 
-Tools are generated from `harness.json`: one per skill plus helpers. Names are
-MCP-safe (no slashes): `<prefix>__<skill_slug>`, where `<prefix>` defaults to
-`s2h` and `<skill_slug>` is the skill id with non-alphanumerics replaced by `_`.
+One tool runs the whole harness. Its name is `<prefix>__<name>` (default
+`s2h__run`; see `S2H_MCP_TOOL_PREFIX`/`S2H_MCP_TOOL_NAME`), and its description
+is generated from `harness.json` so a model knows when to call it:
 
-| Tool | Arguments | Returns |
-| --- | --- | --- |
-| `s2h__<skill_slug>` | `{ message, sessionId?, answer?, context? }` | Final harness answer as text, plus `structuredContent { skill, answer, route?, usage?, inputRequired?, sessionId? }` |
-| `s2h__route` | `{ message }` | `{ skill, reason, confidence? }` from the router only |
-| `s2h__list_skills` | `{}` | Manifest skills (`id`, `title`, `triggers`, `effects`) |
-| `s2h__read_doc` | `{ path }` | Allowlisted doc content |
+```text
+Run the "<title>" harness (<name> v<version>).
+Procedures: "<trigger>" -> <skill title>; ...
+Effects: none.
+```
+
+| Field | Value |
+| --- | --- |
+| Name | `<prefix>__<name>` (default `s2h__run`) |
+| Input | `{ message: string, skill?: string, sessionId?: string, context?: "turn"|"branch"|"isolated" }` |
+| Output | Answer text plus `structuredContent { harness, version, skill, route: { skill, reason }, answer, usage, inputRequired?, sessionId? }` |
+
+`skill` is an optional override; otherwise the host routes from the `AGENTS.md`
+table / `harness.json` triggers (ADR-0003).
 
 Registration sketch:
 
 ```ts
-server.registerTool(`${prefix}__${skill.slug}`, {
-  title: skill.title,
-  description: `${skill.title}. Matches: ${skill.triggers.join(", ")}.`,
+server.registerTool(`${prefix}__${toolName}`, {
+  title: manifest.title,
+  description: describeHarness(manifest), // title, version, procedures, effects
   inputSchema: {
-    message: z.string().describe("Natural-language request for this procedure"),
+    message: z.string().describe("Natural-language request for the harness"),
+    skill: z.string().optional().describe("Force a skill id instead of routing"),
     sessionId: z.string().optional(),
-    answer: z.string().optional().describe("Reply to a previous inputRequired prompt"),
     context: z.enum(["turn", "branch", "isolated"]).optional(),
   },
   outputSchema: {
+    harness: z.string(),
+    version: z.string(),
     skill: z.string(),
+    route: z.object({ skill: z.string(), reason: z.string() }).optional(),
     answer: z.string(),
-    route: z.string().optional(),
     usage: z.object({ inputTokens: z.number(), outputTokens: z.number() }).optional(),
     inputRequired: z.boolean().optional(),
     sessionId: z.string().optional(),
   },
   annotations: { readOnlyHint: true, openWorldHint: false },
-}, async ({ message, sessionId, answer, context }, extra) => {
-  const result = await runtime.runSkill({ skillId: skill.id, message, sessionId, answer, context, signal: extra.signal });
+}, async (args, extra) => {
+  const result = await runtime.runHarness({
+    ...args,
+    signal: extra.signal,
+    progress: progressReporter(extra), // notifications/progress when a token is present
+  });
   return { content: [{ type: "text", text: result.answer }], structuredContent: result };
 });
 ```
@@ -293,16 +307,29 @@ server.registerTool(`${prefix}__${skill.slug}`, {
 Annotations reflect the harness: `readOnlyHint: true` unless the manifest
 reports effects; `openWorldHint: true` only when the sandbox allows egress.
 
-### 6.3 Resources
+### 6.3 Streaming results and cancellation
 
-| URI | Content |
-| --- | --- |
-| `harness://manifest` | `harness.json` (`application/json`) |
-| `harness://docs/<path>` | Allowlisted docs (`text/markdown`), same confinement as `/api/docs/:name` |
-| `harness://sops/<path>` | Ingested SOP sources (`text/markdown`) |
+An MCP tool call returns one result, so the run streams back over
+`notifications/progress`:
 
-Only manifest `docs` entries and `sops/` files are listed and readable. Resource
-reads are size-capped and root-confined.
+- If `extra._meta?.progressToken` is present, emit `notifications/progress` for:
+  - the route decision (`route: <skill> (<reason>)`),
+  - `task_activity` / `tool_call` activity,
+  - streamed model text deltas as `message`.
+- The final `answer` is the tool result. Clients without progress support still
+  get the final answer.
+- Honor the tool callback's `extra.signal` (and the Streamable HTTP request
+  abort) by aborting the run's `AbortController` — the same path as
+  `/api/sessions/:id/cancel`.
+- One active run per MCP session; concurrent calls for the same session are
+  rejected with an MCP tool error.
+
+```text
+notifications/progress { progressToken, progress: 0, message: "route: anc-quick-check (trigger)" }
+notifications/progress { progressToken, progress: 1, message: "Phase 1/4: extracting the case..." }
+notifications/progress { progressToken, progress: 2, message: "DANGER SIGN(S) PRESENT" }
+... final tool result: { content: [{ type: "text", text: "<full answer>" }], structuredContent: {...} }
+```
 
 ### 6.4 `ask_user` → elicitation
 
@@ -322,28 +349,19 @@ const result = await server.elicitInput({
 
 If the client does not support elicitation, the tool returns
 `structuredContent { inputRequired: true, sessionId, prompt }` with the question
-as text and the run suspended. The client re-invokes the skill tool with
+as text and the run suspended. The client re-invokes `s2h__run` with
 `{ sessionId, answer }` to resume. Suspended sessions are in-memory and expire
 with `S2H_MCP_SESSION_TTL_MS` (default 10 minutes). Streamable HTTP sessions are
 kept per MCP session id; stdio uses one implicit session.
 
-### 6.5 Progress and cancellation
-
-- When the tool call carries a progress token, map DML `task_activity` and
-  `tool_call` events to `notifications/progress`; the final `answer` is the tool
-  result.
-- Honor the tool callback's `extra.signal` (and Streamable HTTP request abort)
-  by aborting the run's `AbortController`, the same path as `/api/sessions/:id/cancel`.
-- One active run per MCP session; concurrent calls for the same session are
-  rejected with an MCP tool error.
-
-### 6.6 Configuration and client setup
+### 6.5 Configuration and client setup
 
 ```dotenv
 S2H_MCP_ENABLED=true
 S2H_MCP_TRANSPORT=both          # http | stdio | both
 S2H_MCP_PATH=/mcp
 S2H_MCP_TOOL_PREFIX=s2h
+S2H_MCP_TOOL_NAME=run
 S2H_MCP_SESSION_TTL_MS=600000
 S2H_MCP_MAX_SESSIONS=32
 ```
@@ -483,11 +501,12 @@ S2H_AGENTVM_WASM=./node_modules/deepclause-agentvm/agentvm-alpine-python.wasm
 S2H_SANDBOX_DIR=/var/lib/s2h/sandbox
 S2H_SANDBOX_NETWORK_RATE=2097152
 
-# MCP server (ADR-0004)
+# MCP server (ADR-0005)
 S2H_MCP_ENABLED=true
 S2H_MCP_TRANSPORT=both         # http | stdio | both
 S2H_MCP_PATH=/mcp
 S2H_MCP_TOOL_PREFIX=s2h
+S2H_MCP_TOOL_NAME=run
 S2H_MCP_SESSION_TTL_MS=600000
 S2H_MCP_MAX_SESSIONS=32
 
