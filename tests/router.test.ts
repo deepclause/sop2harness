@@ -3,23 +3,24 @@ import { parseRouterTable } from "../src/harness/router.js";
 
 const TABLE = `# refund-desk harness
 
-## Procedure routing
+## DeepClause policy routing
 
-When a request matches a procedure below, run the mapped skill and report its answer.
+When a request matches a procedure below, do **not** answer from memory. Call the
+\`dc_run\` tool with the mapped skill, then report its answer.
 
-| Procedure / trigger | Skill (\`harness.json\` id) | Effects |
+| Procedure / trigger | Skill (\`dc_run.skill\`) | Args (\`dc_run.args\`) |
 | --- | --- | --- |
-| Refund / return eligibility | \`refund-policy\` | none |
-| Visit schedule / next contact | \`anc-schedule\` | none |
+| Refund / return eligibility | \`skills/refund-policy.dml\` | \`["<the user's request>"]\` |
+| Visit schedule / next contact | \`skills/anc-schedule.dml\` | \`["<the user's request>"]\` |
 | _(no procedures yet)_ | | |
 `;
 
 describe("parseRouterTable", () => {
-  it("extracts only backtick-wrapped skill rows", () => {
+  it("extracts only backtick-wrapped skill paths", () => {
     const rows = parseRouterTable(TABLE);
     expect(rows).toEqual([
-      { trigger: "Refund / return eligibility", skillId: "refund-policy", effects: "none" },
-      { trigger: "Visit schedule / next contact", skillId: "anc-schedule", effects: "none" },
+      { trigger: "Refund / return eligibility", skillPath: "skills/refund-policy.dml" },
+      { trigger: "Visit schedule / next contact", skillPath: "skills/anc-schedule.dml" },
     ]);
   });
 
@@ -29,6 +30,6 @@ describe("parseRouterTable", () => {
 
   it("ignores the empty placeholder row", () => {
     const rows = parseRouterTable(TABLE);
-    expect(rows.some((row) => row.skillId === "")).toBe(false);
+    expect(rows.some((row) => row.skillPath === "")).toBe(false);
   });
 });

@@ -20,7 +20,7 @@ export const DEEPCLAUSE_DEFAULT_CONFIG = {
   gasLimit: 100_000,
   maxTokens: 16_384,
   verbose: false,
-  modelToolEnabled: false,
+  modelToolEnabled: true,
   judgment: {
     default: "llm",
     jev: { enabled: false, model: "jev-latest", apiKeyEnv: "TYPESAFE_API_KEY" },

@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^0.85.1",
+    "@earendil-works/pi-coding-agent": "^0.85.1",
+    "deepclause-pi": "0.5.0",
     "deepclause-sdk": "0.0.89"__AGENTVM_DEP____MCP_DEP__
   },
   "devDependencies": {

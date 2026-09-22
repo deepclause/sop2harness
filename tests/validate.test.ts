@@ -63,11 +63,11 @@ function manifest(overrides: Record<string, unknown> = {}): string {
 
 const AGENTS = `# refund-desk harness
 
-## Procedure routing
+## DeepClause policy routing
 
-| Procedure / trigger | Skill (\`harness.json\` id) | Effects |
+| Procedure / trigger | Skill (\`dc_run.skill\`) | Args (\`dc_run.args\`) |
 | --- | --- | --- |
-| Refund / return eligibility | \`refund-policy\` | none |
+| Refund / return eligibility | \`skills/refund-policy.dml\` | \`["<the user's request>"]\` |
 `;
 
 async function writeFixture(root: string, opts: { skill?: string; manifest?: string; agents?: string } = {}): Promise<void> {
@@ -106,7 +106,7 @@ describe("validateHarness", () => {
 
   it("requires AGENTS.md and harness.json routing to agree", async () => {
     const root = await tempProject();
-    await writeFixture(root, { agents: AGENTS.replace("`refund-policy`", "`other-skill`") });
+    await writeFixture(root, { agents: AGENTS.replace("`skills/refund-policy.dml`", "`skills/other-skill.dml`") });
     const report = await validateHarness(projectPaths(root));
     expect(report.ok).toBe(false);
     expect(report.errors.join("\n")).toContain("missing a routing row");

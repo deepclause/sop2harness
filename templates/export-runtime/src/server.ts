@@ -3,8 +3,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { loadManifest, harnessRoot } from "./harness.js";
-import { routeRequest } from "./router.js";
-import { cancelSession, createSession, deleteSession, disposeAll, getSession, provideInput, runSkill } from "./runtime.js";
+import { cancelSession, createSession, deleteSession, disposeAll, getSession, provideInput, runTurn } from "./runtime.js";
 __MCP_IMPORT__
 
 const PORT = Number(process.env.PORT ?? 8080);
@@ -179,17 +178,8 @@ async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<vo
     return;
   }
 
-  const route = routeRequest(manifest, message, skill);
-
   sse(res);
   sendEvent(res, "session", { sessionId, harness: manifest.name, version: manifest.version });
-  if (!route.skill) {
-    sendEvent(res, "input_required", { prompt: "Which procedure should handle this request?" });
-    sendEvent(res, "done", { sessionId, ok: false });
-    res.end();
-    return;
-  }
-  sendEvent(res, "route", { skill: route.skill.id, reason: route.reason, confidence: null });
 
   if (getSession(sessionId)) {
     sendEvent(res, "error", { code: "conflict", message: "session is already running" });
@@ -202,48 +192,32 @@ async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<vo
   activeRuns += 1;
   const timeout = setTimeout(() => session.controller.abort(), RUN_TIMEOUT_MS);
 
+  const prompt = skill ? `Run the "${skill}" skill for this request:\n\n${message}` : message;
+
   try {
-    for await (const event of runSkill(route.skill.id, message, { sessionId, signal: session.controller.signal })) {
-      switch (event.type) {
-        case "answer":
-          sendEvent(res, "answer", { content: event.content, skill: route.skill.id, detail: null });
-          break;
-        case "stream":
-          sendEvent(res, "stream", { delta: event.content ?? "" });
-          break;
-        case "output":
-        case "log":
-          sendEvent(res, "stream", { delta: event.content ?? "" });
-          break;
-        case "tool_call":
-          sendEvent(res, "tool_call", {
-            name: event.toolName,
-            state: event.toolState ?? "running",
-            args: event.toolArgs ?? null,
-            result: event.toolResult ?? null,
-            isError: event.toolState === "failed",
-          });
-          if (event.toolName === "ask_user" && event.toolState === "starting") {
-            sendEvent(res, "input_required", { prompt: String((event.toolArgs as Record<string, unknown> | undefined)?.prompt ?? "") });
-          }
-          break;
-        case "task_activity":
-          sendEvent(res, "task_activity", { state: event.taskState ?? "running", description: event.taskDescription ?? "" });
-          break;
-        case "input_required":
-          sendEvent(res, "input_required", { prompt: event.prompt ?? "" });
-          break;
-        case "usage":
-          sendEvent(res, "usage", event.usage ?? {});
-          break;
-        case "error":
-          sendEvent(res, "error", { code: "runtime_error", message: event.content ?? "runtime error" });
-          break;
-        case "finished":
-        case "memory_compaction":
-          break;
-      }
-    }
+    const answer = await runTurn(sessionId, prompt, {
+      signal: session.controller.signal,
+      onEvent: (event) => {
+        switch (event.type) {
+          case "text":
+            sendEvent(res, "stream", { delta: event.delta, kind: "text" });
+            break;
+          case "thinking":
+            sendEvent(res, "stream", { delta: event.delta, kind: "thinking" });
+            break;
+          case "tool":
+            sendEvent(res, "tool_call", {
+              name: event.name,
+              state: event.state,
+              args: event.args ?? null,
+              result: event.result ?? null,
+              isError: event.isError,
+            });
+            break;
+        }
+      },
+    });
+    sendEvent(res, "answer", { content: answer, skill: skill ?? "agent", detail: null });
     sendEvent(res, "done", { sessionId, ok: true });
   } catch (error) {
     sendEvent(res, "error", { code: "runtime_error", message: error instanceof Error ? error.message : String(error) });

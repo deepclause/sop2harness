@@ -1,20 +1,23 @@
 import path from "node:path";
-import { createDeepClause, createJevJudgeBackend, createLLMJudgeBackend } from "deepclause-sdk";
-import type { DeepClauseSDK, DMLEvent, JudgeBackend } from "deepclause-sdk";
-import { createBackend } from "./backend.js";
-import { harnessRoot, loadManifest, loadSkillSource } from "./harness.js";
-import { registerHarnessTools } from "./tools.js";
-import { Sandbox } from "./sandbox.js";
+import { createRequire } from "node:module";
+import {
+  DefaultResourceLoader,
+  getAgentDir,
+  ModelRuntime,
+  SessionManager,
+  SettingsManager,
+  createAgentSession,
+  type AgentSession,
+} from "@earendil-works/pi-coding-agent";
+import type { DMLEvent } from "deepclause-sdk";
+import { harnessRoot } from "./harness.js";
 
-export interface Session {
-  id: string;
-  controller: AbortController;
-  resolveInput?: (value: string) => void;
-  rejectInput?: (error: Error) => void;
-  sdkPromise?: Promise<DeepClauseSDK>;
-  sandbox?: Sandbox;
-  pendingRun?: PendingRun;
-}
+const require = createRequire(import.meta.url);
+
+export type RunEvent =
+  | { type: "text"; delta: string }
+  | { type: "thinking"; delta: string }
+  | { type: "tool"; name: string; state: "start" | "end"; args?: unknown; result?: unknown; isError?: boolean };
 
 export interface PendingRun {
   iterator: AsyncGenerator<DMLEvent>;
@@ -23,7 +26,20 @@ export interface PendingRun {
   reason: string;
 }
 
+export interface Session {
+  id: string;
+  controller: AbortController;
+  sessionPromise?: Promise<AgentSession>;
+  resolveInput?: (value: string) => void;
+  rejectInput?: (error: Error) => void;
+  pendingRun?: PendingRun;
+}
+
 const sessions = new Map<string, Session>();
+
+function deepClausePiDir(): string {
+  return path.dirname(require.resolve("deepclause-pi/package.json"));
+}
 
 export function createSession(id: string): Session {
   const existing = sessions.get(id);
@@ -38,118 +54,116 @@ export function getSession(id: string): Session | undefined {
 }
 
 export function deleteSession(id: string): boolean {
-  const session = sessions.get(id);
-  if (!session) return false;
-  void session.sandbox?.dispose();
-  sessions.delete(id);
-  return true;
+  return sessions.delete(id);
 }
 
 export function cancelSession(id: string): boolean {
   const session = sessions.get(id);
   if (!session) return false;
   session.controller.abort();
-  if (session.rejectInput) {
-    session.rejectInput(new Error("session cancelled while waiting for input"));
-    session.rejectInput = undefined;
-    session.resolveInput = undefined;
-  }
   return true;
 }
 
-export function provideInput(id: string, value: string): boolean {
-  const session = sessions.get(id);
-  if (!session?.resolveInput) return false;
-  session.resolveInput(value);
-  session.resolveInput = undefined;
-  session.rejectInput = undefined;
-  return true;
+function agentSession(session: Session): Promise<AgentSession> {
+  if (!session.sessionPromise) session.sessionPromise = createAgentSessionForRuntime(session);
+  return session.sessionPromise;
+}
+
+async function createAgentSessionForRuntime(session: Session): Promise<AgentSession> {
+  const modelRuntime = await ModelRuntime.create();
+  const settings = SettingsManager.inMemory({ compaction: { enabled: false } });
+
+  const loader = new DefaultResourceLoader({
+    cwd: harnessRoot(),
+    agentDir: getAgentDir(),
+    settingsManager: settings,
+    additionalExtensionPaths: [path.join(deepClausePiDir(), "src", "index.ts")],
+    additionalSkillPaths: [path.join(deepClausePiDir(), "skills")],
+  });
+  await loader.reload();
+
+  const { session: agent } = await createAgentSession({
+    cwd: harnessRoot(),
+    agentDir: getAgentDir(),
+    modelRuntime,
+    settingsManager: settings,
+    resourceLoader: loader,
+    sessionManager: SessionManager.inMemory(harnessRoot()),
+    tools: ["read", "grep", "find", "ls", "dc_run"],
+  });
+
+  await agent.bindExtensions({});
+
+  return agent;
+}
+
+function assistantText(agent: AgentSession): string {
+  const messages = agent.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i] as { role?: string; content?: Array<{ type?: string; text?: string }> };
+    if (message?.role !== "assistant") continue;
+    const text = (message.content ?? [])
+      .filter((block): block is { type: "text"; text: string } => block.type === "text")
+      .map((block) => block.text)
+      .join("");
+    if (text.trim()) return text;
+  }
+  return "";
 }
 
 export async function disposeAll(): Promise<void> {
-  await Promise.all([...sessions.values()].map((session) => session.sandbox?.dispose()));
+  // Agent sessions hold in-memory state; nothing to flush on shutdown.
 }
 
-function sessionSdk(session: Session): Promise<DeepClauseSDK> {
-  if (!session.sdkPromise) session.sdkPromise = createSessionSdk(session);
-  return session.sdkPromise;
+export function provideInput(_id: string, _value: string): boolean {
+  return false;
 }
 
-async function createSessionSdk(session: Session): Promise<DeepClauseSDK> {
-  const manifest = await loadManifest();
-  const backend = createBackend(process.env.S2H_LLM_BACKEND?.trim() || "pi");
-  const modelId = process.env.S2H_LLM_MODEL?.trim() || "gpt-4o-mini";
-
-  const judgeBackends: Record<string, JudgeBackend> = {
-    llm: createLLMJudgeBackend({ llmBackend: backend, model: modelId }),
-  };
-  const jev = manifest.judgment?.jev;
-  if (jev?.enabled) {
-    const apiKey = process.env[jev.apiKeyEnv];
-    if (apiKey) {
-      judgeBackends.jev = createJevJudgeBackend({ apiKey, model: jev.model });
-    }
-  }
-  const requestedJudge = manifest.judgment?.default ?? "llm";
-  const defaultJudge = judgeBackends[requestedJudge] ? requestedJudge : "llm";
-
-  const sdk = await createDeepClause({
-    model: modelId,
-    maxTokens: manifest.runtime.maxTokens,
-    streaming: true,
-    llmBackend: backend,
-    judgeBackends,
-    defaultJudge,
-  });
-
-  const shellNeeded = manifest.runtime.tools.includes("bash") || manifest.runtime.compat.includes("pi_bash");
-  if (shellNeeded) {
-    const sandbox = manifest.runtime.sandbox;
-    const limits = sandbox?.limits ?? { timeoutMs: 120_000, maxOutputBytes: 200_000 };
-    session.sandbox = new Sandbox({
-      wasmPath: process.env.S2H_AGENTVM_WASM ?? path.join(process.cwd(), "node_modules", "deepclause-agentvm", "agentvm-alpine-python.wasm"),
-      harnessRoot: harnessRoot(),
-      scratchDir: process.env.S2H_SANDBOX_DIR ?? path.join(process.cwd(), ".sandbox"),
-      timeoutMs: limits.timeoutMs,
-      maxOutputBytes: limits.maxOutputBytes,
-      network: sandbox?.network ?? false,
-      allow: sandbox?.allow ?? [],
-      networkRateLimit: Number(process.env.S2H_SANDBOX_NETWORK_RATE ?? 2 * 1024 * 1024),
-    });
-  }
-
-  registerHarnessTools(sdk, harnessRoot(), manifest.runtime.tools, manifest.runtime.compat, session, session.sandbox);
-  return sdk;
+export async function* runSkill(skillId: string, message: string, options: { sessionId: string; signal?: AbortSignal }): AsyncGenerator<DMLEvent> {
+  const prompt = `Run the "${skillId}" skill for this request:\n\n${message}`;
+  const answer = await runTurn(options.sessionId, prompt, { signal: options.signal });
+  yield { type: "answer", content: answer } as DMLEvent;
 }
 
-export interface RunSkillOptions {
-  sessionId: string;
+export interface RunTurnOptions {
   signal?: AbortSignal;
+  onEvent?: (event: RunEvent) => void;
 }
 
-export async function* runSkill(skillId: string, message: string, options: RunSkillOptions): AsyncGenerator<DMLEvent> {
-  const manifest = await loadManifest();
-  const skill = manifest.skills.find((candidate) => candidate.id === skillId);
-  if (!skill) throw new Error(`Unknown skill '${skillId}'`);
+export async function runTurn(sessionId: string, message: string, options: RunTurnOptions = {}): Promise<string> {
+  const session = getSession(sessionId);
+  if (!session) throw new Error(`Unknown session '${sessionId}'`);
 
-  const session = getSession(options.sessionId);
-  if (!session) throw new Error(`Unknown session '${options.sessionId}'`);
-
-  const sdk = await sessionSdk(session);
-  const code = await loadSkillSource(manifest, skill);
-
-  yield* sdk.runDML(code, {
-    args: [message],
-    workspacePath: harnessRoot(),
-    gasLimit: manifest.runtime.gasLimit,
-    signal: options.signal ?? session.controller.signal,
-    onUserInput: () =>
-      new Promise<string>((resolve, reject) => {
-        session.resolveInput = resolve;
-        session.rejectInput = reject;
-        if ((options.signal ?? session.controller.signal).aborted) {
-          reject(new Error("session aborted while waiting for input"));
-        }
-      }),
+  const agent = await agentSession(session);
+  const unsubscribe = agent.subscribe((event) => {
+    switch (event.type) {
+      case "message_update": {
+        const update = event.assistantMessageEvent;
+        if (update.type === "text_delta") options.onEvent?.({ type: "text", delta: update.delta });
+        else if (update.type === "thinking_delta") options.onEvent?.({ type: "thinking", delta: update.delta });
+        break;
+      }
+      case "tool_execution_start":
+        options.onEvent?.({ type: "tool", name: event.toolName, state: "start", args: (event as { args?: unknown }).args });
+        break;
+      case "tool_execution_end":
+        options.onEvent?.({
+          type: "tool",
+          name: event.toolName,
+          state: "end",
+          result: (event as { result?: unknown }).result,
+          isError: (event as { isError?: boolean }).isError,
+        });
+        break;
+      default:
+        break;
+    }
   });
+
+  try {
+    await agent.prompt(message);
+    return assistantText(agent) || "(no answer)";
+  } finally {
+    unsubscribe();
+  }
 }

@@ -301,31 +301,26 @@ export async function validateHarness(paths: ProjectPaths): Promise<ValidationRe
 
   // --- Router agreement ------------------------------------------------------
   const rows = await parseRouterFile(paths.agentsMd);
-  const rowById = new Map<string, string>();
+  const rowByPath = new Map<string, string>();
   for (const row of rows) {
-    if (rowById.has(row.skillId)) {
-      errors.push(`AGENTS.md has more than one routing row for skill '${row.skillId}'`);
+    if (rowByPath.has(row.skillPath)) {
+      errors.push(`AGENTS.md has more than one routing row for ${row.skillPath}`);
     }
-    rowById.set(row.skillId, row.effects);
+    rowByPath.set(row.skillPath, row.trigger);
   }
-  const routableIds = new Set(routableSkills.map((skill) => skill.id));
+  const routablePathToId = new Map<string, string>();
   for (const skill of routableSkills) {
-    if (!rowById.has(skill.id)) {
-      errors.push(`AGENTS.md is missing a routing row for skill '${skill.id}'`);
-    }
-  }
-  for (const id of rowById.keys()) {
-    if (!routableIds.has(id)) {
-      errors.push(`AGENTS.md routes skill '${id}', which is not a routable skill in harness.json`);
-    }
+    if (typeof skill.path === "string") routablePathToId.set(normalizeRelativePath(skill.path), skill.id);
   }
   for (const skill of routableSkills) {
-    const effects = rowById.get(skill.id);
-    const manifestEffects = typeof skill.effects === "string" ? skill.effects : "none";
-    if (effects !== undefined && normalizeEffects(effects) !== normalizeEffects(manifestEffects)) {
-      errors.push(
-        `AGENTS.md effects for '${skill.id}' ('${effects}') do not match harness.json ('${manifestEffects}')`,
-      );
+    const pathKey = typeof skill.path === "string" ? normalizeRelativePath(skill.path) : "";
+    if (!rowByPath.has(pathKey)) {
+      errors.push(`AGENTS.md is missing a routing row for skill '${skill.id}' (${skill.path})`);
+    }
+  }
+  for (const pathKey of rowByPath.keys()) {
+    if (!routablePathToId.has(pathKey)) {
+      errors.push(`AGENTS.md routes '${pathKey}', which is not a routable skill in harness.json`);
     }
   }
 

@@ -80,23 +80,24 @@ Rules:
 
 ## Router table
 
-`AGENTS.md` must contain a `## Procedure routing` section with exactly one data
-row per routable skill. The second column is a backtick-wrapped skill id, and
-the Effects column must equal the skill's `effects` value.
+`AGENTS.md` must contain a `## DeepClause policy routing` section with exactly
+one data row per routable skill. The second column is a backtick-wrapped
+`skills/<slug>.dml` path, and the Args column is `["<the user's request>"]`.
 
 ```markdown
-## Procedure routing
+## DeepClause policy routing
 
-When a request matches a procedure below, run the mapped skill and report its
-answer. Do not answer from memory or from the SOP text.
+When a request matches a procedure below, do **not** answer from memory or from
+the SOP text. Call the `dc_run` tool with the mapped skill and args, then report
+its answer.
 
-| Procedure / trigger | Skill (`harness.json` id) | Effects |
+| Procedure / trigger | Skill (`dc_run.skill`) | Args (`dc_run.args`) |
 | --- | --- | --- |
-| Refund / return eligibility | `refund-policy` | none |
+| Refund / return eligibility | `skills/refund-policy.dml` | `["<the user's request>"]` |
 ```
 
-Keep the manifest `triggers` and the table in sync: same skill ids, same
-effects, no missing or extra rows.
+Keep the manifest `skills[].path` and the table in sync: same skill paths, no
+missing or extra rows.
 
 ## DML conventions
 
