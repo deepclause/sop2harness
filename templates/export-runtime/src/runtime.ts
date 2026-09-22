@@ -1,18 +1,21 @@
+import path from "node:path";
 import { createDeepClause } from "deepclause-sdk";
 import type { DeepClauseSDK, DMLEvent } from "deepclause-sdk";
 import { createBackend } from "./backend.js";
 import { harnessRoot, loadManifest, loadSkillSource } from "./harness.js";
 import { registerHarnessTools } from "./tools.js";
+import { Sandbox } from "./sandbox.js";
 
 export interface Session {
   id: string;
   controller: AbortController;
   resolveInput?: (value: string) => void;
   rejectInput?: (error: Error) => void;
+  sdkPromise?: Promise<DeepClauseSDK>;
+  sandbox?: Sandbox;
 }
 
 const sessions = new Map<string, Session>();
-let sdkPromise: Promise<DeepClauseSDK> | undefined;
 
 export function createSession(id: string): Session {
   const existing = sessions.get(id);
@@ -27,7 +30,11 @@ export function getSession(id: string): Session | undefined {
 }
 
 export function deleteSession(id: string): boolean {
-  return sessions.delete(id);
+  const session = sessions.get(id);
+  if (!session) return false;
+  void session.sandbox?.dispose();
+  sessions.delete(id);
+  return true;
 }
 
 export function cancelSession(id: string): boolean {
@@ -51,12 +58,16 @@ export function provideInput(id: string, value: string): boolean {
   return true;
 }
 
-async function getSdk(): Promise<DeepClauseSDK> {
-  if (!sdkPromise) sdkPromise = createSdk();
-  return sdkPromise;
+export async function disposeAll(): Promise<void> {
+  await Promise.all([...sessions.values()].map((session) => session.sandbox?.dispose()));
 }
 
-async function createSdk(): Promise<DeepClauseSDK> {
+function sessionSdk(session: Session): Promise<DeepClauseSDK> {
+  if (!session.sdkPromise) session.sdkPromise = createSessionSdk(session);
+  return session.sdkPromise;
+}
+
+async function createSessionSdk(session: Session): Promise<DeepClauseSDK> {
   const manifest = await loadManifest();
   const backend = createBackend(process.env.S2H_LLM_BACKEND?.trim() || "pi");
   const sdk = await createDeepClause({
@@ -65,7 +76,24 @@ async function createSdk(): Promise<DeepClauseSDK> {
     streaming: true,
     llmBackend: backend,
   });
-  registerHarnessTools(sdk, harnessRoot(), manifest.runtime.tools);
+
+  const shellNeeded = manifest.runtime.tools.includes("bash") || manifest.runtime.compat.includes("pi_bash");
+  if (shellNeeded) {
+    const sandbox = manifest.runtime.sandbox;
+    const limits = sandbox?.limits ?? { timeoutMs: 120_000, maxOutputBytes: 200_000 };
+    session.sandbox = new Sandbox({
+      wasmPath: process.env.S2H_AGENTVM_WASM ?? path.join(process.cwd(), "node_modules", "deepclause-agentvm", "agentvm-alpine-python.wasm"),
+      harnessRoot: harnessRoot(),
+      scratchDir: process.env.S2H_SANDBOX_DIR ?? path.join(process.cwd(), ".sandbox"),
+      timeoutMs: limits.timeoutMs,
+      maxOutputBytes: limits.maxOutputBytes,
+      network: sandbox?.network ?? false,
+      allow: sandbox?.allow ?? [],
+      networkRateLimit: Number(process.env.S2H_SANDBOX_NETWORK_RATE ?? 2 * 1024 * 1024),
+    });
+  }
+
+  registerHarnessTools(sdk, harnessRoot(), manifest.runtime.tools, manifest.runtime.compat, session.sandbox);
   return sdk;
 }
 
@@ -79,10 +107,11 @@ export async function* runSkill(skillId: string, message: string, options: RunSk
   const skill = manifest.skills.find((candidate) => candidate.id === skillId);
   if (!skill) throw new Error(`Unknown skill '${skillId}'`);
 
-  const sdk = await getSdk();
-  const code = await loadSkillSource(manifest, skill);
   const session = getSession(options.sessionId);
   if (!session) throw new Error(`Unknown session '${options.sessionId}'`);
+
+  const sdk = await sessionSdk(session);
+  const code = await loadSkillSource(manifest, skill);
 
   yield* sdk.runDML(code, {
     args: [message],

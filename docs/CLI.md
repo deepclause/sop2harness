@@ -7,6 +7,7 @@ Phase 2 implemented `create` (SOP ingestion + pi authoring session + validation)
 Phase 3 implemented `commit` (semver bump, git commit/tag, version history).
 Phase 4 implemented `export` (standalone API server generation).
 Phase 5 implemented the exported web chat app and Docker image.
+Phase 6 implemented the AgentVM sandbox for exported shell steps.
 The remaining commands are wired into the CLI with their documented options but
 report "not implemented yet" until their roadmap phase lands.
 
@@ -157,14 +158,20 @@ Endpoints: `/` (chat web app), `/healthz`, `/api/harness`, `/api/skills`,
 | --- | --- |
 | `--out <dir>` | Output directory. Defaults to `./export`. |
 | `--llm <backend>` | `pi` is implemented; `openai-compatible` is a later phase. |
-| `--sandbox <provider>` | `none` is implemented; `agentvm` is Phase 6. |
+| `--sandbox <provider>` | `agentvm` (default when the harness needs shell) or `none` (reject shell). |
 | `--no-mcp` | Accepted; MCP is Phase 7. |
 | `--no-web` | Omit the web app and the Docker web layer. |
 | `--allow-effects` | Required when any skill declares `effects` other than `none`. |
 | `--port <n>` | Recorded in the generated `.env.example`. |
 
-Phase 5 does not yet implement tagged exports (`--tag`), AgentVM sandbox, or
-MCP; those remain later phases.
+When the harness declares `bash`/`pi_bash`, the export includes
+`deepclause-agentvm`, its WASM image, and a per-session sandbox. Shell runs
+inside the VM with networking off by default, the harness mounted at
+`/mnt/harness`, a scratch `/workspace` from `S2H_SANDBOX_DIR`, and per-command
+timeout/output caps from `runtime.sandbox.limits`.
+
+Phase 6 does not yet implement tagged exports (`--tag`), the
+`openai-compatible` backend, or MCP; those remain later phases.
 
 ## `s2h check`
 

@@ -4,7 +4,7 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { loadManifest, harnessRoot } from "./harness.js";
 import { routeRequest } from "./router.js";
-import { cancelSession, createSession, deleteSession, getSession, provideInput, runSkill } from "./runtime.js";
+import { cancelSession, createSession, deleteSession, disposeAll, getSession, provideInput, runSkill } from "./runtime.js";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const REQUEST_MAX_BYTES = Number(process.env.S2H_REQUEST_MAX_BYTES ?? 262_144);
@@ -341,3 +341,9 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`s2h export listening on http://127.0.0.1:${PORT}`);
 });
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    void disposeAll().finally(() => process.exit(0));
+  });
+}

@@ -95,8 +95,8 @@ export async function exportCommand(cwd: string, options: ExportOptions): Promis
     ui.error(`--llm ${options.llm} is not implemented yet; use --llm pi.`);
     return 1;
   }
-  if (options.sandbox && options.sandbox !== "none") {
-    ui.error(`--sandbox ${options.sandbox} is not implemented yet; use --sandbox none.`);
+  if (options.sandbox && options.sandbox !== "none" && options.sandbox !== "agentvm") {
+    ui.error(`--sandbox ${options.sandbox} is not supported; use agentvm or none.`);
     return 1;
   }
 
@@ -114,10 +114,15 @@ export async function exportCommand(cwd: string, options: ExportOptions): Promis
     manifest.runtime.compat.includes("pi_bash") ||
     manifest.runtime.sandbox?.enabled === true;
 
-  if (shellNeeded) {
-    ui.error("This harness declares shell execution; the AgentVM sandbox is not implemented yet (Phase 6).");
+  const sandboxMode = options.sandbox ?? (shellNeeded ? "agentvm" : "none");
+  if (shellNeeded && sandboxMode !== "agentvm") {
+    ui.error("This harness declares shell execution; pass --sandbox agentvm (or omit the flag).");
     return 1;
   }
+  if (!shellNeeded && sandboxMode === "agentvm") {
+    ui.warn("Sandbox requested but the harness does not declare shell tools; exporting without sandbox.");
+  }
+  const includeSandbox = shellNeeded && sandboxMode === "agentvm";
 
   const effects = manifest.skills.filter((skill) => skill.effects && skill.effects !== "none");
   if (effects.length > 0 && !options.allowEffects) {
@@ -137,6 +142,14 @@ export async function exportCommand(cwd: string, options: ExportOptions): Promis
     ? "NODE_ENV=production PORT=8080 S2H_HARNESS_DIR=/app/harness S2H_WEB_DIR=/app/web"
     : "NODE_ENV=production PORT=8080 S2H_HARNESS_DIR=/app/harness";
   const webCopy = includeWeb ? "COPY web ./web" : "# web app omitted (--no-web)";
+  const agentvmDep = includeSandbox ? ",\n    \"deepclause-agentvm\": \"0.4.0\"" : "";
+  const sandboxCopy = includeSandbox
+    ? "COPY --from=build /app/node_modules/deepclause-agentvm/agentvm-alpine-python.wasm ./agentvm/"
+    : "# agentvm sandbox omitted";
+  const sandboxEnv = includeSandbox
+    ? "ENV S2H_AGENTVM_WASM=/app/agentvm/agentvm-alpine-python.wasm\nENV S2H_SANDBOX_DIR=/var/lib/s2h/sandbox"
+    : "# agentvm sandbox omitted";
+  const sandboxVolume = includeSandbox ? 'VOLUME ["/var/lib/s2h/sandbox"]' : "# agentvm sandbox omitted";
 
   // Harness copy (read-only at runtime) + generated runtime.
   await cp(paths.harnessDir, path.join(outDir, "harness"), { recursive: true });
@@ -145,6 +158,10 @@ export async function exportCommand(cwd: string, options: ExportOptions): Promis
     __HARNESS_VERSION__: manifest.version,
     __RUNTIME_ENV__: runtimeEnv,
     __WEB_COPY__: webCopy,
+    __AGENTVM_DEP__: agentvmDep,
+    __SANDBOX_COPY__: sandboxCopy,
+    __SANDBOX_ENV__: sandboxEnv,
+    __SANDBOX_VOLUME__: sandboxVolume,
   });
   if (!includeWeb) {
     await rm(path.join(outDir, "web"), { recursive: true, force: true });

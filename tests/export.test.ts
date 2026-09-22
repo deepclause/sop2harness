@@ -41,7 +41,7 @@ describe("exportCommand", () => {
     await expect(readFile(path.join(root, "export", "web", "index.html"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("rejects a harness that declares shell execution", async () => {
+  it("exports a shell harness with the agentvm sandbox", async () => {
     const root = await tempProject();
     await writeFile(
       path.join(root, "harness", "harness.json"),
@@ -65,6 +65,35 @@ describe("exportCommand", () => {
       }),
       "utf8",
     );
-    expect(await exportCommand(root, { out: "export" })).toBe(1);
+    expect(await exportCommand(root, { out: "export" })).toBe(0);
+    await expect(readFile(path.join(root, "export", "package.json"), "utf8")).resolves.toContain("deepclause-agentvm");
+    await expect(readFile(path.join(root, "export", "Dockerfile"), "utf8")).resolves.toContain("agentvm-alpine-python.wasm");
+  });
+
+  it("rejects a shell harness when --sandbox none is forced", async () => {
+    const root = await tempProject();
+    await writeFile(
+      path.join(root, "harness", "harness.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        name: "fixture",
+        version: "0.1.0",
+        entry: null,
+        skills: [],
+        runtime: {
+          tools: ["bash"],
+          compat: [],
+          context: "turn",
+          gasLimit: 100000,
+          maxTokens: 16384,
+          streaming: true,
+          sandbox: { provider: "agentvm", enabled: true, network: false, allow: [], mounts: {}, persistentRoot: false, limits: { timeoutMs: 120000, maxOutputBytes: 200000 } },
+        },
+        judgment: { default: "llm", jev: { enabled: false, model: "jev-latest", apiKeyEnv: "TYPESAFE_API_KEY" } },
+        docs: ["README.md", "AGENTS.md", "sops/INDEX.md"],
+      }),
+      "utf8",
+    );
+    expect(await exportCommand(root, { out: "export", sandbox: "none" })).toBe(1);
   });
 });
