@@ -25,7 +25,7 @@ const PREDICATES = new Set([
 ]);
 
 function escapeHtml(value) {
-  return value
+  return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -73,16 +73,137 @@ function highlightDml(src) {
   return out.join("");
 }
 
-function addMessage(role, text) {
+function inlineMarkdown(text) {
+  return escapeHtml(text)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
+
+function renderMarkdown(text) {
+  const lines = text.split("\n");
+  let html = "";
+  let inCode = false;
+  let codeLang = "";
+  let codeBuf = [];
+  let listBuf = [];
+
+  const flushList = () => {
+    if (listBuf.length) {
+      html += `<ul>${listBuf.map((item) => `<li>${inlineMarkdown(item)}</li>`).join("")}</ul>`;
+      listBuf = [];
+    }
+  };
+
+  for (const line of lines) {
+    if (line.startsWith("```")) {
+      if (inCode) {
+        html += `<pre><code${codeLang ? ` class="lang-${codeLang}"` : ""}>${escapeHtml(codeBuf.join("\n"))}</code></pre>`;
+        inCode = false;
+        codeBuf = [];
+      } else {
+        inCode = true;
+        codeLang = line.slice(3).trim();
+      }
+      continue;
+    }
+    if (inCode) {
+      codeBuf.push(line);
+      continue;
+    }
+    if (/^\s*[-*]\s+/.test(line)) {
+      listBuf.push(line.replace(/^\s*[-*]\s+/, ""));
+      continue;
+    }
+    flushList();
+    if (line.trim() === "") continue;
+    if (/^###\s+/.test(line)) html += `<h3>${inlineMarkdown(line.slice(4))}</h3>`;
+    else if (/^##\s+/.test(line)) html += `<h2>${inlineMarkdown(line.slice(3))}</h2>`;
+    else if (/^#\s+/.test(line)) html += `<h1>${inlineMarkdown(line.slice(2))}</h1>`;
+    else html += `<p>${inlineMarkdown(line)}</p>`;
+  }
+  if (inCode) html += `<pre><code>${escapeHtml(codeBuf.join("\n"))}</code></pre>`;
+  flushList();
+  return html;
+}
+
+function summarizeArgs(args) {
+  if (!args || typeof args !== "object") return "";
+  const entries = Object.entries(args);
+  if (entries.length === 0) return "";
+  const parts = entries.slice(0, 3).map(([key, value]) => {
+    if (typeof value === "string" && value.length > 70) return `${key}=<${value.length} chars>`;
+    const rendered = typeof value === "string" ? value : JSON.stringify(value);
+    return `${key}=${rendered.length > 40 ? `${rendered.slice(0, 40)}…` : rendered}`;
+  });
+  if (entries.length > 3) parts.push("…");
+  return parts.join("  ");
+}
+
+function toolCard(data) {
+  const card = document.createElement("div");
+  card.className = "tool-card";
+  const head = document.createElement("div");
+  head.className = "tool-card-head";
+  const kind = document.createElement("span");
+  kind.className = "tool-card-kind";
+  kind.textContent = data.name || "tool";
+  const subject = document.createElement("span");
+  subject.className = "tool-card-subject";
+  subject.textContent = summarizeArgs(data.args) || "";
+  const status = document.createElement("span");
+  status.className = "tool-card-status";
+  head.append(kind, subject, status);
+  card.appendChild(head);
+
+  const body = document.createElement("div");
+  body.className = "tool-card-body";
+  card.appendChild(body);
+
+  return { card, status, body };
+}
+
+function setToolStatus(entry, state, isError) {
+  entry.status.className = "tool-card-status";
+  if (state === "starting" || state === "running") {
+    entry.status.classList.add("running");
+    entry.status.textContent = "running";
+  } else if (isError || state === "failed") {
+    entry.status.classList.add("error");
+    entry.status.textContent = "error";
+  } else {
+    entry.status.classList.add("done");
+    entry.status.textContent = "done";
+  }
+}
+
+function addMessage(role) {
   const wrapper = document.createElement("div");
   wrapper.className = `message ${role}`;
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.textContent = text;
   wrapper.appendChild(bubble);
   messages.appendChild(wrapper);
   messages.scrollTop = messages.scrollHeight;
   return bubble;
+}
+
+function addUserMessage(text) {
+  const bubble = addMessage("user");
+  bubble.textContent = text;
+}
+
+function addAssistantMessage() {
+  const bubble = addMessage("assistant");
+  const content = document.createElement("div");
+  content.className = "assistant-content";
+  const toolList = document.createElement("div");
+  toolList.className = "tool-list";
+  const textBlock = document.createElement("div");
+  textBlock.className = "markdown";
+  content.append(toolList, textBlock);
+  bubble.appendChild(content);
+  return { bubble, toolList, textBlock };
 }
 
 function addActivity(text) {
@@ -91,7 +212,6 @@ function addActivity(text) {
   line.textContent = text;
   messages.appendChild(line);
   messages.scrollTop = messages.scrollHeight;
-  return line;
 }
 
 function setRunning(running) {
@@ -242,8 +362,8 @@ async function send() {
   if (!message || sendButton.disabled) return;
   input.value = "";
 
-  addMessage("user", message);
-  const assistant = addMessage("assistant", "");
+  addUserMessage(message);
+  const assistant = addAssistantMessage();
   setRunning(true);
 
   state.controller = new AbortController();
@@ -252,11 +372,8 @@ async function send() {
   if (state.sessionId) body.sessionId = state.sessionId;
 
   let finalText = "";
-  const append = (text) => {
-    finalText += text;
-    assistant.textContent = finalText;
-    messages.scrollTop = messages.scrollHeight;
-  };
+  let answered = false;
+  const runningTools = [];
 
   try {
     const response = await fetch("/api/chat", {
@@ -275,14 +392,37 @@ async function send() {
           addActivity(`→ ${data.skill} (${data.reason})`);
           break;
         case "stream":
-          append(data.delta || "");
+          finalText += data.delta || "";
+          if (!answered) {
+            assistant.textBlock.textContent = finalText;
+          }
           break;
         case "answer":
-          append(data.content || "");
+          finalText = data.content || finalText;
+          answered = true;
+          assistant.textBlock.innerHTML = renderMarkdown(finalText);
           break;
-        case "tool_call":
-          addActivity(`· ${data.name} ${data.state || ""}`);
+        case "tool_call": {
+          if (data.state === "starting" || data.state === "running") {
+            const entry = toolCard(data);
+            setToolStatus(entry, "running", false);
+            assistant.toolList.appendChild(entry.card);
+            runningTools.push({ name: data.name, ...entry });
+          } else {
+            const index = runningTools.findLastIndex((entry) => entry.name === data.name);
+            if (index >= 0) {
+              const entry = runningTools[index];
+              setToolStatus(entry, data.state, Boolean(data.isError));
+              if (data.result !== undefined && data.result !== null) {
+                const pre = document.createElement("pre");
+                pre.className = "tool-card-output";
+                pre.textContent = typeof data.result === "string" ? data.result : JSON.stringify(data.result, null, 2);
+                entry.body.appendChild(pre);
+              }
+            }
+          }
           break;
+        }
         case "task_activity":
           if (data.description) addActivity(data.description);
           break;
@@ -301,19 +441,21 @@ async function send() {
           addActivity(`tokens ${data.inputTokens ?? 0} → ${data.outputTokens ?? 0}`);
           break;
         case "error":
-          assistant.textContent = finalText + `\n\n⚠ ${data.message || "error"}`;
-          assistant.classList.add("error");
+          assistant.textBlock.innerHTML = renderMarkdown(`${finalText}\n\n⚠ ${data.message || "error"}`);
+          assistant.textBlock.classList.add("error");
           break;
         case "done":
           break;
       }
     });
 
-    if (!assistant.textContent && !finalText) append("(no answer)");
+    if (!answered) {
+      assistant.textBlock.innerHTML = finalText ? renderMarkdown(finalText) : renderMarkdown("(no answer)");
+    }
   } catch (error) {
     if (error.name !== "AbortError") {
-      assistant.textContent = `⚠ ${error.message}`;
-      assistant.classList.add("error");
+      assistant.textBlock.innerHTML = renderMarkdown(`⚠ ${error.message}`);
+      assistant.textBlock.classList.add("error");
     }
   } finally {
     setRunning(false);

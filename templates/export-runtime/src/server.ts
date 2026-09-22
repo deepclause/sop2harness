@@ -216,7 +216,13 @@ async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<vo
           sendEvent(res, "stream", { delta: event.content ?? "" });
           break;
         case "tool_call":
-          sendEvent(res, "tool_call", { name: event.toolName, state: event.toolState ?? "running" });
+          sendEvent(res, "tool_call", {
+            name: event.toolName,
+            state: event.toolState ?? "running",
+            args: event.toolArgs ?? null,
+            result: event.toolResult ?? null,
+            isError: event.toolState === "failed",
+          });
           if (event.toolName === "ask_user" && event.toolState === "starting") {
             sendEvent(res, "input_required", { prompt: String((event.toolArgs as Record<string, unknown> | undefined)?.prompt ?? "") });
           }

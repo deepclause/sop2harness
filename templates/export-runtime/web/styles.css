@@ -91,6 +91,29 @@ aside li:hover { background: var(--panel-soft); color: var(--accent); }
   font-size: 14px;
   line-height: 1.5;
 }
+.message.assistant .bubble { display: block; max-width: 760px; }
+.assistant-content { display: flex; flex-direction: column; gap: 10px; }
+.markdown p { margin: 0 0 8px; }
+.markdown h1, .markdown h2, .markdown h3 { margin: 12px 0 6px; line-height: 1.3; }
+.markdown h1 { font-size: 18px; }
+.markdown h2 { font-size: 16px; }
+.markdown h3 { font-size: 15px; }
+.markdown code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--panel-soft); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+.markdown pre { background: var(--panel-soft); border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow: auto; }
+.markdown pre code { background: transparent; padding: 0; }
+.markdown ul { margin: 0 0 8px; padding-left: 20px; }
+
+.tool-list { display: flex; flex-direction: column; gap: 8px; }
+.tool-card { border: 1px solid var(--border); border-radius: 9px; background: var(--panel-soft); overflow: hidden; }
+.tool-card-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 13px; }
+.tool-card-kind { font-weight: 600; color: var(--accent); }
+.tool-card-subject { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-card-status { margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.tool-card-status.running { color: var(--warning); }
+.tool-card-status.done { color: var(--success); }
+.tool-card-status.error { color: var(--error); }
+.tool-card-body { border-top: 1px solid var(--border); padding: 8px 10px; }
+.tool-card-output { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; color: var(--text); max-height: 240px; overflow: auto; }
 .activity { color: var(--muted); font-size: 12px; margin: 3px 0; }
 
 #composer {
