@@ -4,6 +4,7 @@ const state = {
   controller: null,
   diagramFiles: [],
   pendingInput: null,
+  history: [],
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -154,14 +155,41 @@ function toolCard(data) {
   subject.textContent = summarizeArgs(data.args) || "";
   const status = document.createElement("span");
   status.className = "tool-card-status";
-  head.append(kind, subject, status);
-  card.appendChild(head);
-
+  const chevron = document.createElement("span");
+  chevron.className = "tool-card-chevron";
+  chevron.textContent = "▸";
+  head.append(kind, subject, status, chevron);
   const body = document.createElement("div");
   body.className = "tool-card-body";
-  card.appendChild(body);
+  body.hidden = true;
+  card.append(head, body);
+  head.addEventListener("click", () => {
+    body.hidden = !body.hidden;
+    chevron.textContent = body.hidden ? "▸" : "▾";
+  });
+  return { card, status, body, chevron };
+}
 
-  return { card, status, body };
+function appendToolResult(entry, text) {
+  entry.body.innerHTML = "";
+  const lines = text.split("\n");
+  const truncated = lines.length > 6;
+  const preview = truncated ? `${lines.slice(0, 6).join("\n")}\n…` : text;
+  const pre = document.createElement("pre");
+  pre.className = "tool-card-output";
+  pre.textContent = preview;
+  entry.body.appendChild(pre);
+  if (truncated) {
+    const toggle = document.createElement("button");
+    toggle.className = "tool-card-toggle";
+    toggle.textContent = `Show all ${lines.length} lines`;
+    toggle.addEventListener("click", () => {
+      const expanded = pre.textContent === text;
+      pre.textContent = expanded ? preview : text;
+      toggle.textContent = expanded ? `Show all ${lines.length} lines` : "Show less";
+    });
+    entry.body.appendChild(toggle);
+  }
 }
 
 function setToolStatus(entry, state, isError) {
@@ -198,13 +226,26 @@ function addAssistantMessage() {
   const bubble = addMessage("assistant");
   const content = document.createElement("div");
   content.className = "assistant-content";
+  const routeChip = document.createElement("div");
+  routeChip.className = "route-chip";
+  const thinkingBlock = document.createElement("details");
+  thinkingBlock.className = "thinking-block";
+  const thinkingSummary = document.createElement("summary");
+  thinkingSummary.innerHTML = '<span class="thinking-spinner"></span> Thinking';
+  const thinkingPre = document.createElement("pre");
+  thinkingPre.textContent = "";
+  thinkingBlock.append(thinkingSummary, thinkingPre);
   const toolList = document.createElement("div");
   toolList.className = "tool-list";
+  const promptBlock = document.createElement("div");
+  promptBlock.className = "prompt-block";
   const textBlock = document.createElement("div");
   textBlock.className = "markdown";
-  content.append(toolList, textBlock);
+  const footer = document.createElement("div");
+  footer.className = "usage-footer";
+  content.append(routeChip, thinkingBlock, toolList, promptBlock, textBlock, footer);
   bubble.appendChild(content);
-  return { bubble, toolList, textBlock };
+  return { bubble, content, routeChip, thinkingBlock, thinkingSummary, thinkingPre, toolList, promptBlock, textBlock, footer };
 }
 
 function addActivity(text) {
@@ -406,15 +447,23 @@ async function send() {
         case "route":
           addActivity(`→ ${data.skill} (${data.reason})`);
           break;
-        case "stream":
-          finalText += data.delta || "";
-          if (!answered) {
-            assistant.textBlock.textContent = finalText;
+        case "stream": {
+          const delta = data.delta || "";
+          if (data.kind === "thinking") {
+            assistant.thinkingBlock.open = true;
+            assistant.thinkingSummary.classList.add("active");
+            assistant.thinkingPre.textContent += delta;
+          } else {
+            finalText += delta;
+            if (!answered) assistant.textBlock.textContent = finalText;
           }
           break;
+        }
         case "answer":
           finalText = data.content || finalText;
           answered = true;
+          assistant.thinkingBlock.open = false;
+          assistant.thinkingSummary.classList.remove("active");
           assistant.textBlock.innerHTML = renderMarkdown(finalText);
           break;
         case "tool_call": {
@@ -429,10 +478,8 @@ async function send() {
               const entry = runningTools[index];
               setToolStatus(entry, data.state, Boolean(data.isError));
               if (data.result !== undefined && data.result !== null) {
-                const pre = document.createElement("pre");
-                pre.className = "tool-card-output";
-                pre.textContent = typeof data.result === "string" ? data.result : JSON.stringify(data.result, null, 2);
-                entry.body.appendChild(pre);
+                const text = typeof data.result === "string" ? data.result : JSON.stringify(data.result, null, 2);
+                appendToolResult(entry, text);
               }
             }
           }
@@ -452,6 +499,8 @@ async function send() {
           addActivity(`tokens ${data.inputTokens ?? 0} → ${data.outputTokens ?? 0}`);
           break;
         case "error":
+          assistant.thinkingBlock.open = false;
+          assistant.thinkingSummary.classList.remove("active");
           assistant.textBlock.innerHTML = renderMarkdown(`${finalText}\n\n⚠ ${data.message || "error"}`);
           assistant.textBlock.classList.add("error");
           break;
@@ -469,6 +518,8 @@ async function send() {
       assistant.textBlock.classList.add("error");
     }
   } finally {
+    assistant.thinkingBlock.open = false;
+    assistant.thinkingSummary.classList.remove("active");
     setRunning(false);
     state.controller = null;
     input.placeholder = "Ask the harness…";

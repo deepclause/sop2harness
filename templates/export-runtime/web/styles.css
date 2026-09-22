@@ -105,15 +105,25 @@ aside li:hover { background: var(--panel-soft); color: var(--accent); }
 
 .tool-list { display: flex; flex-direction: column; gap: 8px; }
 .tool-card { border: 1px solid var(--border); border-radius: 9px; background: var(--panel-soft); overflow: hidden; }
-.tool-card-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 13px; }
+.tool-card-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 13px; cursor: pointer; }
 .tool-card-kind { font-weight: 600; color: var(--accent); }
 .tool-card-subject { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool-card-status { margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .tool-card-status.running { color: var(--warning); }
 .tool-card-status.done { color: var(--success); }
 .tool-card-status.error { color: var(--error); }
+.tool-card-chevron { color: var(--muted); margin-left: 6px; }
 .tool-card-body { border-top: 1px solid var(--border); padding: 8px 10px; }
-.tool-card-output { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; color: var(--text); max-height: 240px; overflow: auto; }
+.tool-card-output { margin: 0 0 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; color: var(--text); max-height: 240px; overflow: auto; }
+.tool-card-toggle { background: transparent; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 2px 0; }
+
+.thinking-block { border: 1px solid var(--border); border-radius: 9px; background: var(--panel-soft); padding: 8px 10px; }
+.thinking-block summary { cursor: pointer; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; list-style: none; }
+.thinking-block summary::-webkit-details-marker { display: none; }
+.thinking-block pre { margin: 8px 0 0; white-space: pre-wrap; font-size: 12px; color: var(--muted); max-height: 300px; overflow: auto; }
+.thinking-spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); display: inline-block; animation: spin 0.8s linear infinite; }
+.thinking-block summary:not(.active) .thinking-spinner { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .activity { color: var(--muted); font-size: 12px; margin: 3px 0; }
 
 #composer {
