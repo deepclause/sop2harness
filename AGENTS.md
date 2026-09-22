@@ -67,8 +67,9 @@ These are binding for the design unless superseded by a new ADR:
 
 - **Docs first.** Change or add a design doc before or with the code. Keep the
   index above current; never link a document that does not exist.
-- **Stay in the design phase until told otherwise.** This repository currently
-  holds design only. Do not scaffold runtime code without an explicit request.
+- **Implementation is underway in roadmap order.** Phases 1 and 2 (`init`,
+  `check`, `list`, `status`, `create`) are landed. Do not scaffold later phases
+  without an explicit request.
 - **Do not fork the siblings.** Use `deepclause-pi` for authoring and
   `deepclause-sdk` for the export runtime. If a capability is missing, record it
   as an open question or an ADR, then extend the sibling deliberately.

@@ -10,6 +10,7 @@
   "files": [
     "dist",
     "templates",
+    "skills",
     "docs"
   ],
   "scripts": {
@@ -24,6 +25,8 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.10.0",
+    "@earendil-works/pi-ai": "^0.85.1",
+    "@earendil-works/pi-coding-agent": "^0.85.1",
     "commander": "^12.1.0",
     "deepclause-sdk": "0.0.89",
     "deepclause-pi": "0.5.0",

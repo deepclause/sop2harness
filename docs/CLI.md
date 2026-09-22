@@ -2,9 +2,10 @@
 
 Command and flag reference for `s2h`.
 
-Status note: Phase 1 implements `init`, `check`, `list`, and `status`. The other
-commands are wired into the CLI with their documented options but report
-"not implemented yet" until their roadmap phase lands.
+Status note: Phase 1 implemented `init`, `check`, `list`, and `status`.
+Phase 2 implemented `create` (SOP ingestion + pi authoring session + validation).
+The remaining commands are wired into the CLI with their documented options but
+report "not implemented yet" until their roadmap phase lands.
 
 ## Global
 
@@ -43,6 +44,40 @@ Scaffolds an s2h project in the current directory:
 semantics, so existing user files (including `.gitignore`, harness docs, SOPs,
 and DeepClause workspace files) are never overwritten. Re-running `init` without
 `--force` on an already-initialized project fails.
+
+## `s2h create`
+
+```
+s2h create [request] [--file <path>...] [--name <slug>] [--update]
+           [--model <provider/id>] [--context <mode>] [--headless] [--json] [--debug]
+```
+
+Authors (or, with `--update`, extends) a harness from a free-text request and/or
+SOP source files.
+
+Flow:
+
+1. Ingest SOP inputs into `harness/sops/<slug>/` and update `sops/INDEX.md`
+   (unchanged files are skipped).
+2. Run one pi agent turn with `cwd = harness/`, the `deepclause-pi` extension,
+   the `handbook-dml` skill, and the bundled `s2h-authoring` skill loaded.
+   The agent may use `read`/`write`/`edit`/`grep`/`find`/`ls` only (no bash).
+3. Validate the result with the same deterministic gate as `s2h check`.
+4. Record the authoring session path under `.s2h/sessions/` for the next commit.
+
+| Flag | Effect |
+| --- | --- |
+| `request` | Free-text description of the SOP/harness to build. |
+| `--file <path>...` | SOP files or directories to ingest. |
+| `--name <slug>` | Skill-set/SOP slug; defaults to the first input's base name. |
+| `--update` | Regenerate generated skills (backs up `skills/` first); preserves user edits. |
+| `--model <provider/id>` | Model override; otherwise `s2h.json`, then pi's default. |
+| `--context <mode>` | Reserved for run context; authoring runs in a fresh turn. |
+| `--headless` | Reserved for CI; create currently runs non-interactively. |
+| `--json` | Emit NDJSON progress events. |
+| `--debug` | Reserved for verbose authoring output. |
+
+`create` leaves generated files in place for inspection when validation fails.
 
 ## `s2h check`
 
@@ -90,7 +125,6 @@ working-tree state, and the last committed version.
 
 | Command | Roadmap phase | Status |
 | --- | --- | --- |
-| `s2h create` | 2 | stub |
 | `s2h commit` | 3 | stub |
 | `s2h export` | 4 | stub |
 | `s2h run` | 4 | stub |

@@ -72,6 +72,35 @@ function normalizeRelativePath(value: string): string {
 
 const FALLBACK_CLAUSE_RE = /agent_main\s*\(\s*_\s*\)\s*:-/;
 
+/**
+ * Validate one DML source. `deepclause-sdk`'s Prolog validator sometimes prints
+ * a fatal SWI-Prolog `ERROR:` (for example a missing final period) without
+ * reflecting it in `ValidationResult.valid`, so capture stderr during the call
+ * and treat SWI errors as failures.
+ */
+async function validateDmlSource(source: string): Promise<{ valid: boolean; errors: string[] }> {
+  const originalWrite = process.stderr.write;
+  let captured = "";
+  process.stderr.write = ((chunk: unknown, ..._args: unknown[]) => {
+    captured += String(chunk);
+    return true;
+  }) as typeof process.stderr.write;
+  let parsed;
+  try {
+    parsed = await validateWithProlog(source);
+  } finally {
+    process.stderr.write = originalWrite;
+  }
+
+  const errors = [...(parsed.errors ?? [])];
+  if (parsed.valid) {
+    for (const line of captured.split(/\r?\n/)) {
+      if (line.includes("ERROR:")) errors.push(line.trim());
+    }
+  }
+  return { valid: parsed.valid && errors.length === 0, errors };
+}
+
 export async function validateHarness(paths: ProjectPaths): Promise<ValidationReport> {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -322,9 +351,9 @@ export async function validateHarness(paths: ProjectPaths): Promise<ValidationRe
       errors.push(`Cannot read DML file ${rel}: ${error instanceof Error ? error.message : String(error)}`);
       continue;
     }
-    const parsed = await validateWithProlog(source);
+    const parsed = await validateDmlSource(source);
     if (!parsed.valid) {
-      errors.push(`DML file ${rel} does not parse: ${(parsed.errors ?? []).join("; ")}`);
+      errors.push(`DML file ${rel} does not parse: ${parsed.errors.join("; ")}`);
     }
     // The static fallback clause requirement applies only to harness skills,
     // not to authoring library files that happen to live under skills/.

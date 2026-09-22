@@ -15,7 +15,9 @@ When a harness declares shell steps, they run inside the opt-in
 **deepclause-agentvm** WASM Linux sandbox (network off by default). Decisions are
 recorded in [docs/DECISIONS/](docs/DECISIONS/).
 
-> Status: **design phase.** No implementation yet. Start with the design docs.
+> Status: **Phase 1 and Phase 2 implemented.** `init`, `check`, `list`, `status`,
+> and `create` (SOP ingestion + pi authoring session) are working; `commit` and
+> `export` are next. Start with the design docs.
 
 ## Commands (target)
 
@@ -26,8 +28,8 @@ s2h commit -m "add triage workflow"      # version the harness
 s2h export --out ./export                # API + web app + Dockerfile
 ```
 
-Planned helpers: `s2h list`, `s2h status`, `s2h check`, `s2h run`, `s2h config`,
-`s2h doctor`. See [docs/DESIGN.md](docs/DESIGN.md).
+Planned helpers: `s2h run`, `s2h config`, `s2h doctor`. See
+[docs/DESIGN.md](docs/DESIGN.md) and [docs/CLI.md](docs/CLI.md).
 
 ## Design documents
 

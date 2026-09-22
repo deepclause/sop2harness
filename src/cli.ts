@@ -6,6 +6,7 @@ import { initCommand } from "./commands/init.js";
 import { checkCommand } from "./commands/check.js";
 import { listCommand } from "./commands/list.js";
 import { statusCommand } from "./commands/status.js";
+import { createCommand } from "./commands/create.js";
 import * as ui from "./ui.js";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
@@ -56,8 +57,29 @@ program
   .option("--headless", "disable interactive prompts")
   .option("--json", "emit machine-readable progress")
   .option("--debug", "enable debug output")
-  .action(() => {
-    process.exitCode = stub("create", "Phase 2");
+  .action(async (request: string | undefined, options: {
+    file?: string[];
+    name?: string;
+    update?: boolean;
+    model?: string;
+    context?: string;
+    headless?: boolean;
+    json?: boolean;
+    debug?: boolean;
+  }) => {
+    await run(() =>
+      createCommand(process.cwd(), {
+        request,
+        files: options.file,
+        name: options.name,
+        update: options.update,
+        model: options.model,
+        context: options.context,
+        headless: options.headless,
+        json: options.json,
+        debug: options.debug,
+      }),
+    );
   });
 
 program

@@ -1,6 +1,7 @@
 # sop2harness — Design
 
-Status: design (no implementation yet).
+Status: design + early implementation (Phases 1–2 landed: `init`/`check`/`list`/
+`status`/`create`).
 Related: [HARNESS_FORMAT.md](HARNESS_FORMAT.md), [EXPORT_RUNTIME.md](EXPORT_RUNTIME.md),
 [pi SDK](https://github.com/earendil-works/pi) (`docs/sdk.md`), `deepclause-pi`,
 `deepclause-sdk`.

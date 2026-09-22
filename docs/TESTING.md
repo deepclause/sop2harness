@@ -11,6 +11,9 @@ tests/
   router.test.ts     harness AGENTS.md policy-table parsing
   validate.test.ts   deterministic harness validation gate
   init.test.ts       s2h init scaffolding + post-init validation
+  ingest.test.ts     SOP ingestion, normalisation, and idempotent re-ingest
+  request.test.ts    authoring request construction
+  create.test.ts     create command guards
 ```
 
 ## What is covered
@@ -20,10 +23,14 @@ tests/
 - **Router parsing** — only backtick-wrapped skill rows become routing rows;
   placeholder rows and prose are ignored.
 - **Validation** — a valid fixture harness passes; missing fallback clauses,
-  router/manifest disagreement, and shell tools without a sandbox declaration
-  all fail.
+  router/manifest disagreement, shell tools without a sandbox declaration, and
+  DML parse failures (including SWI-Prolog errors the SDK validator misses) all
+  fail.
 - **Init** — a fresh `s2h init` produces a harness that passes `s2h check`, and
   re-initializing without `--force` is refused.
+- **Ingestion** — Markdown is normalised, indexed, and re-ingested idempotently;
+  directories are ingested recursively.
+- **Create guards** — `create` refuses to run without a request or `--file`.
 
 ## Future phases
 
