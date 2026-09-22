@@ -2,6 +2,7 @@ const state = {
   sessionId: null,
   skill: null,
   controller: null,
+  diagramFiles: [],
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -127,22 +128,29 @@ function preBlock(content, className) {
   return pre;
 }
 
-async function loadSkills() {
-  const res = await fetch("/api/skills");
-  const data = await res.json();
-  const list = $("#skills");
-  list.innerHTML = "";
-  for (const skill of data.skills) {
-    const item = document.createElement("li");
-    item.textContent = skill.title;
-    item.title = skill.triggers.join(", ");
-    item.addEventListener("click", () => {
-      state.skill = skill.id;
-      input.value = skill.triggers[0] || skill.title;
-      send();
+let mermaidPromise;
+function ensureMermaid() {
+  if (window.mermaid) return Promise.resolve(window.mermaid);
+  if (!mermaidPromise) {
+    mermaidPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
+      script.onload = () => {
+        window.mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "default" });
+        resolve(window.mermaid);
+      };
+      script.onerror = () => reject(new Error("Mermaid failed to load"));
+      document.head.appendChild(script);
     });
-    list.appendChild(item);
   }
+  return mermaidPromise;
+}
+
+async function renderMermaid(code) {
+  const mermaid = await ensureMermaid();
+  const id = `mmd-${Math.random().toString(36).slice(2)}`;
+  const { svg } = await mermaid.render(id, code);
+  return svg;
 }
 
 async function loadDocs() {
@@ -171,10 +179,7 @@ async function loadDmlFiles() {
     const item = document.createElement("li");
     item.textContent = file;
     item.title = file;
-    item.addEventListener("click", async () => {
-      const content = await (await fetch(`/api/dml/file?path=${encodeURIComponent(file)}`)).json();
-      openViewer(file, preBlock(highlightDml(content.content), "dml"));
-    });
+    item.addEventListener("click", () => openDmlViewer(file));
     list.appendChild(item);
   }
 }
@@ -182,9 +187,10 @@ async function loadDmlFiles() {
 async function loadDiagrams() {
   const res = await fetch("/api/diagrams");
   const data = await res.json();
+  state.diagramFiles = data.files;
   const list = $("#diagrams");
   list.innerHTML = "";
-  for (const file of data.files) {
+  for (const file of data.files.filter((name) => name.endsWith(".mmd") || name.endsWith(".html"))) {
     const item = document.createElement("li");
     item.textContent = file;
     item.title = file;
@@ -315,6 +321,79 @@ async function send() {
   }
 }
 
+async function openDmlViewer(file) {
+  const dml = await (await fetch(`/api/dml/file?path=${encodeURIComponent(file)}`)).json();
+  const base = file.replace(/^.*\//, "").replace(/\.dml$/, "");
+  const grades = [
+    { label: "Presentation", path: `diagrams/${base}.presentation.mmd` },
+    { label: "Specification", path: `diagrams/${base}.specification.mmd` },
+  ].filter((grade) => state.diagramFiles.includes(grade.path));
+
+  const container = document.createElement("div");
+  container.className = "dml-viewer";
+
+  const codePane = document.createElement("div");
+  codePane.className = "pane-code";
+  codePane.appendChild(preBlock(highlightDml(dml.content), "dml"));
+
+  const diagramPane = document.createElement("div");
+  diagramPane.className = "pane-diagram";
+  const tabs = document.createElement("div");
+  tabs.className = "diagram-tabs";
+  const stage = document.createElement("div");
+  stage.className = "diagram-stage";
+  diagramPane.appendChild(tabs);
+  diagramPane.appendChild(stage);
+
+  container.appendChild(codePane);
+  container.appendChild(diagramPane);
+  openViewer(file, container);
+
+  if (grades.length === 0) {
+    stage.innerHTML = '<div class="hint">No diagrams generated for this skill yet.</div>';
+    return;
+  }
+
+  let activeIndex = 0;
+  const buttons = grades.map((grade, index) => {
+    const button = document.createElement("button");
+    button.className = "diagram-tab";
+    button.textContent = grade.label;
+    button.addEventListener("click", () => activate(index));
+    tabs.appendChild(button);
+    return button;
+  });
+
+  async function activate(index) {
+    activeIndex = index;
+    buttons.forEach((button, i) => button.classList.toggle("active", i === index));
+    const grade = grades[index];
+    stage.innerHTML = '<div class="hint">Rendering…</div>';
+    try {
+      const content = await (await fetch(`/api/diagrams/file?path=${encodeURIComponent(grade.path)}`)).json();
+      const svg = await renderMermaid(content.content);
+      const zoom = document.createElement("div");
+      zoom.className = "diagram-zoom";
+      zoom.innerHTML = svg;
+      stage.innerHTML = "";
+      stage.appendChild(zoom);
+
+      let scale = 1;
+      const applyScale = () => { zoom.style.transform = `scale(${scale})`; };
+      stage.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        scale = Math.min(4, Math.max(0.25, scale + (event.deltaY < 0 ? 0.1 : -0.1)));
+        applyScale();
+      }, { passive: false });
+      stage.addEventListener("dblclick", () => { scale = 1; applyScale(); });
+    } catch (error) {
+      stage.innerHTML = `<div class="hint">Could not render diagram: ${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  activate(0);
+}
+
 $("#composer").addEventListener("submit", (event) => {
   event.preventDefault();
   send();
@@ -326,7 +405,6 @@ viewer.addEventListener("click", (event) => {
 });
 
 loadHarness();
-loadSkills();
 loadDocs();
 loadDmlFiles();
 loadDiagrams();

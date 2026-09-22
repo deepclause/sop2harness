@@ -61,7 +61,7 @@ function createProgressRenderer(debug: boolean): (event: AuthoringProgress) => v
         process.stdout.write(event.delta);
         break;
       case "thinking":
-        if (debug) process.stdout.write(pc.dim(event.delta));
+        process.stdout.write(pc.dim(event.delta));
         break;
       case "tool":
         if (event.state === "start") {

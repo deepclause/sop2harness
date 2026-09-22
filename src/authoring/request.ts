@@ -42,8 +42,10 @@ export function buildAuthoringRequest(input: AuthoringRequestInput): string {
     lines.push("Create new skills only; do not overwrite existing skills or delete user files.");
   }
   lines.push("Proceed autonomously (do not ask for confirmation). Work inside the harness");
-  lines.push("root, write valid DML directly (no compiler), update harness.json and");
-  lines.push("harness/AGENTS.md, and stop before any destructive or external side effect.");
+  lines.push("root, write valid DML directly (no compiler), write presentation and");
+  lines.push("specification Mermaid diagrams for each skill under .pi/deepclause/diagrams/,");
+  lines.push("update harness.json and harness/AGENTS.md, and stop before any destructive or");
+  lines.push("external side effect.");
 
   return lines.join("\n");
 }

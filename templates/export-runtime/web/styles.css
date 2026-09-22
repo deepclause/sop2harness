@@ -34,7 +34,7 @@ header {
 }
 
 .brand { display: flex; align-items: center; gap: 12px; }
-.logo { height: 34px; width: auto; opacity: .9; }
+.logo { height: 34px; width: auto; opacity: .9; filter: brightness(0); }
 header h1 { font-size: 17px; margin: 0; font-weight: 600; }
 .meta { color: var(--muted); font-size: 12px; }
 
@@ -167,3 +167,34 @@ code.dml { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace
 .tok-num { color: #d97706; }
 .tok-var { color: #7c3aed; }
 .tok-punct { color: #64748b; }
+
+.dml-viewer {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+  height: 100%;
+  margin: -20px;
+}
+.pane-code {
+  overflow: auto;
+  padding: 18px;
+  border-right: 1px solid var(--border);
+  background: var(--panel-soft);
+}
+.pane-diagram { display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
+.diagram-tabs { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid var(--border); }
+.diagram-tab {
+  background: var(--panel-soft);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 7px 12px;
+}
+.diagram-tab.active { background: var(--accent); color: #ffffff; border-color: var(--accent); }
+.diagram-stage {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  position: relative;
+}
+.diagram-zoom { transform-origin: 0 0; display: inline-block; }
+.diagram-zoom svg { max-width: none; height: auto; }
+.hint { color: var(--muted); padding: 20px; font-size: 14px; }
