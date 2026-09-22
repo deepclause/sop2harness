@@ -30,6 +30,7 @@ export interface Session {
   id: string;
   controller: AbortController;
   sessionPromise?: Promise<AgentSession>;
+  running?: boolean;
   resolveInput?: (value: string) => void;
   rejectInput?: (error: Error) => void;
   pendingRun?: PendingRun;

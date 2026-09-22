@@ -181,13 +181,14 @@ async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<vo
   sse(res);
   sendEvent(res, "session", { sessionId, harness: manifest.name, version: manifest.version });
 
-  if (getSession(sessionId)) {
+  if (getSession(sessionId)?.running) {
     sendEvent(res, "error", { code: "conflict", message: "session is already running" });
     sendEvent(res, "done", { sessionId, ok: false });
     res.end();
     return;
   }
   const session = createSession(sessionId);
+  session.running = true;
 
   activeRuns += 1;
   const timeout = setTimeout(() => session.controller.abort(), RUN_TIMEOUT_MS);
@@ -225,6 +226,7 @@ async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<vo
   } finally {
     clearTimeout(timeout);
     activeRuns -= 1;
+    session.running = false;
     res.end();
   }
 }
