@@ -36,8 +36,9 @@ tests/
 - **Commit** — dry-run makes no changes; a real commit bumps the harness
   version, creates the tag, records the real content-commit hash in
   `.s2h/versions.json`, and leaves the working tree clean.
-- **Export** — generates the server/harness skeleton and `harness.lock.json`,
-  and refuses harnesses that declare shell execution in Phase 4.
+- **Export** — generates the server/harness skeleton, web chat app, Dockerfile,
+  compose file, and `harness.lock.json`; `--no-web` omits the web layer, and
+  shell-needing harnesses are refused in Phase 5.
 
 ## Future phases
 

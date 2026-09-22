@@ -132,12 +132,23 @@ export async function exportCommand(cwd: string, options: ExportOptions): Promis
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
+  const includeWeb = options.web !== false;
+  const runtimeEnv = includeWeb
+    ? "NODE_ENV=production PORT=8080 S2H_HARNESS_DIR=/app/harness S2H_WEB_DIR=/app/web"
+    : "NODE_ENV=production PORT=8080 S2H_HARNESS_DIR=/app/harness";
+  const webCopy = includeWeb ? "COPY web ./web" : "# web app omitted (--no-web)";
+
   // Harness copy (read-only at runtime) + generated runtime.
   await cp(paths.harnessDir, path.join(outDir, "harness"), { recursive: true });
   await copyTemplateFiles(outDir, {
     __HARNESS_NAME__: manifest.name,
     __HARNESS_VERSION__: manifest.version,
+    __RUNTIME_ENV__: runtimeEnv,
+    __WEB_COPY__: webCopy,
   });
+  if (!includeWeb) {
+    await rm(path.join(outDir, "web"), { recursive: true, force: true });
+  }
 
   const s2hVersion = JSON.parse(await readFile(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8")) as {
     version: string;
@@ -155,7 +166,7 @@ export async function exportCommand(cwd: string, options: ExportOptions): Promis
 
   ui.ok(`Exported to ${outDir}`);
   if (options.mcp !== false) ui.info("MCP server is not included yet (Phase 7).");
-  if (options.web !== false) ui.info("Web chat app is not included yet (Phase 5).");
   ui.info("Next: cd export && npm install && npm run build && npm start");
+  ui.info("Or: cd export && docker compose up --build");
   return 0;
 }

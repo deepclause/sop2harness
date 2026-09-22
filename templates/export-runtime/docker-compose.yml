@@ -1,0 +1,10 @@
+services:
+  s2h:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    read_only: true
+    tmpfs:
+      - /tmp

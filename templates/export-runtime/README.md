@@ -1,8 +1,9 @@
 # s2h export
 
-Generated API server for the `__HARNESS_NAME__` harness (v`__HARNESS_VERSION__`).
+Generated API server and chat web app for the `__HARNESS_NAME__` harness
+(v`__HARNESS_VERSION__`).
 
-## Run
+## Run locally
 
 ```bash
 npm install
@@ -11,10 +12,18 @@ cp .env.example .env   # then edit model/provider credentials
 npm start
 ```
 
-The server listens on `PORT` (default `8080`).
+Open `http://localhost:8080/` for the chat web app.
+
+## Run with Docker
+
+```bash
+cp .env.example .env   # then edit model/provider credentials
+docker compose up --build
+```
 
 ## Endpoints
 
+- `GET /` (chat web app)
 - `GET /healthz`
 - `GET /api/harness`
 - `GET /api/skills`

@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { loadManifest, harnessRoot } from "./harness.js";
@@ -11,6 +11,30 @@ const REQUEST_MAX_BYTES = Number(process.env.S2H_REQUEST_MAX_BYTES ?? 262_144);
 const RUN_TIMEOUT_MS = Number(process.env.S2H_RUN_TIMEOUT_MS ?? 120_000);
 const MAX_CONCURRENT_RUNS = Number(process.env.S2H_MAX_CONCURRENT_RUNS ?? 2);
 const API_TOKEN = process.env.S2H_API_TOKEN;
+const WEB_DIR = process.env.S2H_WEB_DIR;
+
+const CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+};
+
+function contentTypeFor(file: string): string {
+  return CONTENT_TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream";
+}
+
+function webFilePath(pathname: string): string | null {
+  if (!WEB_DIR) return null;
+  const relative = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+  const root = path.resolve(WEB_DIR);
+  const candidate = path.resolve(root, relative);
+  if (candidate !== root && !candidate.startsWith(root + path.sep)) return null;
+  return candidate;
+}
 
 let activeRuns = 0;
 
@@ -289,6 +313,23 @@ const server = createServer(async (req, res) => {
       const sessionId = deleteMatch[1]!;
       json(res, 200, { deleted: deleteSession(sessionId) });
       return;
+    }
+
+    if (req.method === "GET" && WEB_DIR) {
+      const file = webFilePath(url.pathname);
+      if (file) {
+        try {
+          const info = await stat(file);
+          if (info.isFile()) {
+            const content = await readFile(file);
+            res.writeHead(200, { "Content-Type": contentTypeFor(file), "Cache-Control": "no-store" });
+            res.end(content);
+            return;
+          }
+        } catch {
+          // fall through to 404
+        }
+      }
     }
 
     jsonError(res, 404, "not_found", "endpoint not found");

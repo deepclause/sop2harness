@@ -28,6 +28,17 @@ describe("exportCommand", () => {
     await expect(readFile(path.join(root, "export", "src", "server.ts"), "utf8")).resolves.toContain("/api/chat");
     await expect(readFile(path.join(root, "export", "package.json"), "utf8")).resolves.toContain("deepclause-sdk");
     await expect(readFile(path.join(root, "export", "harness.lock.json"), "utf8")).resolves.toContain('"harnessVersion"');
+    await expect(readFile(path.join(root, "export", "web", "index.html"), "utf8")).resolves.toContain('<div id="messages">');
+    await expect(readFile(path.join(root, "export", "web", "app.js"), "utf8")).resolves.toContain("/api/chat");
+    await expect(readFile(path.join(root, "export", "Dockerfile"), "utf8")).resolves.toContain("node:22-slim");
+    await expect(readFile(path.join(root, "export", "docker-compose.yml"), "utf8")).resolves.toContain("services:");
+  });
+
+  it("omits the web app with --no-web", async () => {
+    const root = await tempProject();
+    expect(await exportCommand(root, { out: "export", web: false })).toBe(0);
+    await expect(readFile(path.join(root, "export", "Dockerfile"), "utf8")).resolves.toContain("web app omitted");
+    await expect(readFile(path.join(root, "export", "web", "index.html"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("rejects a harness that declares shell execution", async () => {

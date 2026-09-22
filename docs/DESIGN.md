@@ -1,7 +1,7 @@
 # sop2harness — Design
 
-Status: design + early implementation (Phases 1–4 landed: `init`/`check`/`list`/
-`status`/`create`/`commit`/`export`).
+Status: design + early implementation (Phases 1–5 landed: `init`/`check`/`list`/
+`status`/`create`/`commit`/`export` with web chat + Docker).
 Related: [HARNESS_FORMAT.md](HARNESS_FORMAT.md), [EXPORT_RUNTIME.md](EXPORT_RUNTIME.md),
 [pi SDK](https://github.com/earendil-works/pi) (`docs/sdk.md`), `deepclause-pi`,
 `deepclause-sdk`.
