@@ -138,7 +138,11 @@ agent_main(_) :-
    interactive mode it returns the user's answer; in headless mode it returns
    a default, so proceed autonomously.
 3. Author one `.dml` skill per procedure.
-4. For each authored skill, write two Mermaid flowcharts directly into
+4. Also author a `general` skill (`skills/general.dml`) with a helpful system
+   prompt that reads `README.md` and `AGENTS.md` and answers general/meta
+   questions ("what can you do?", "help", "hi"). Declare it in `harness.json`
+   with those triggers and a router row in `AGENTS.md`.
+5. For each procedure skill, write two Mermaid flowcharts directly into
    `.pi/deepclause/diagrams/` using the write tool:
    - `<slug>.presentation.mmd` — a general-audience overview (procedure name,
      inputs, main steps, final answer).
@@ -146,11 +150,11 @@ agent_main(_) :-
      thresholds, rule facts, fallback paths).
    Keep the diagrams valid Mermaid (flowchart TD/LR). Do not rely on a
    `dc_diagram` tool.
-5. Update `harness.json`: add each skill and keep the existing schema/fields.
-6. Add one router row per skill to `AGENTS.md`.
-7. Self-review against the rules above (fallback clause present, paths exist,
+6. Update `harness.json`: add each skill and keep the existing schema/fields.
+7. Add one router row per skill to `AGENTS.md`.
+8. Self-review against the rules above (fallback clause present, paths exist,
    triggers non-empty, effects match, no pi-only tools, no compiler output).
-8. Do **not** create `.deepclause/`, do not delete user files, and do not
+9. Do **not** create `.deepclause/`, do not delete user files, and do not
    overwrite a skill that already exists unless you are explicitly updating it.
 
 When finished, report the skills you created or changed and the trigger/effects

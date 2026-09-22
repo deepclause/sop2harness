@@ -3,6 +3,7 @@ const state = {
   skill: null,
   controller: null,
   diagramFiles: [],
+  pendingInput: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -362,6 +363,20 @@ async function send() {
   if (!message || sendButton.disabled) return;
   input.value = "";
 
+  // Answering a pending clarification in the normal input box.
+  if (state.pendingInput) {
+    const sessionId = state.pendingInput.sessionId;
+    addUserMessage(message);
+    state.pendingInput = null;
+    input.placeholder = "Ask the harness…";
+    await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/input`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: message }),
+    }).catch(() => {});
+    return;
+  }
+
   addUserMessage(message);
   const assistant = addAssistantMessage();
   setRunning(true);
@@ -427,14 +442,10 @@ async function send() {
           if (data.description) addActivity(data.description);
           break;
         case "input_required": {
-          const value = prompt(data.prompt || "Input required:");
-          if (state.sessionId && value !== null) {
-            fetch(`/api/sessions/${encodeURIComponent(state.sessionId)}/input`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ value }),
-            }).catch(() => {});
-          }
+          state.pendingInput = { sessionId: state.sessionId };
+          addActivity(`❓ ${data.prompt || "Input required"}`);
+          input.placeholder = data.prompt || "Answer…";
+          setRunning(false);
           break;
         }
         case "usage":
@@ -460,6 +471,8 @@ async function send() {
   } finally {
     setRunning(false);
     state.controller = null;
+    input.placeholder = "Ask the harness…";
+    state.pendingInput = null;
   }
 }
 

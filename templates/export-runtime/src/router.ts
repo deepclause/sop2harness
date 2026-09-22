@@ -2,7 +2,7 @@ import type { HarnessManifest, Skill } from "./harness.js";
 
 export interface RouteDecision {
   skill?: Skill;
-  reason: "explicit" | "trigger" | "single-skill" | "unresolved";
+  reason: "explicit" | "trigger" | "single-skill" | "general" | "unresolved";
   candidates?: Skill[];
 }
 
@@ -36,6 +36,8 @@ export function routeRequest(manifest: HarnessManifest, message: string, explici
 
   if (matches.length === 0) {
     if (manifest.skills.length === 1) return { skill: manifest.skills[0], reason: "single-skill" };
+    const general = manifest.skills.find((candidate) => candidate.id === "general");
+    if (general) return { skill: general, reason: "general" };
     return { reason: "unresolved", candidates: manifest.skills };
   }
 
