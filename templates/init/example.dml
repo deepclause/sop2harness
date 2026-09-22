@@ -1,0 +1,20 @@
+% Harness example skill.
+% Demonstrates the Portable Harness Tool Contract (PHTC): read_harness_file and
+% list_harness_files are root-confined, and every harness skill keeps a static
+% fallback clause. This file is a seeded authoring example and is not listed in
+% harness.json, so `s2h check` parses it but does not route to it.
+% SOP: none (seeded example)
+% Effects: none
+
+agent_main(Request) :-
+    Request \= "",
+    exec(list_harness_files(path: "sops"), ListResult),
+    get_dict(entries, ListResult, Entries),
+    length(Entries, Count),
+    format(string(Answer),
+        "The harness has ~w SOP source entry(s). Ask a procedure question to route to a skill.",
+        [Count]),
+    answer(Answer).
+
+agent_main(_) :-
+    answer("Supply a request for this harness. The router maps it to a skill.").

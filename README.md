@@ -34,6 +34,8 @@ Planned helpers: `s2h list`, `s2h status`, `s2h check`, `s2h run`, `s2h config`,
 | Document | Contents |
 | --- | --- |
 | [docs/DESIGN.md](docs/DESIGN.md) | Vision, architecture, CLI, create/commit/export flows, security, roadmap |
+| [docs/CLI.md](docs/CLI.md) | Command and flag reference |
+| [docs/TESTING.md](docs/TESTING.md) | Test layout and how to run the suite |
 | [docs/HARNESS_FORMAT.md](docs/HARNESS_FORMAT.md) | Harness layout, `harness.json`, DML conventions, runtime tool contract |
 | [docs/EXPORT_RUNTIME.md](docs/EXPORT_RUNTIME.md) | Exported API, web chat, Docker image, configuration, security |
 

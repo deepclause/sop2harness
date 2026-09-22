@@ -28,6 +28,8 @@ single entry point to the project's design.
 | [README.md](README.md) | Project overview and command sketch | current |
 | [AGENTS.md](AGENTS.md) | This working guide and documentation index | current |
 | [docs/DESIGN.md](docs/DESIGN.md) | Vision, goals, architecture, CLI, flows, security, roadmap, open questions | current |
+| [docs/CLI.md](docs/CLI.md) | Command and flag reference (`init`, `check`, `list`, `status` implemented in Phase 1) | current |
+| [docs/TESTING.md](docs/TESTING.md) | Unit/integration test layout and how to run the suite | current |
 | [docs/HARNESS_FORMAT.md](docs/HARNESS_FORMAT.md) | Harness project layout, `harness.json` schema, DML conventions, runtime tool contract | current |
 | [docs/EXPORT_RUNTIME.md](docs/EXPORT_RUNTIME.md) | Exported API, web chat, Docker image, configuration and security | current |
 | [docs/DECISIONS/ADR-0001-sandboxed-bash-via-agentvm.md](docs/DECISIONS/ADR-0001-sandboxed-bash-via-agentvm.md) | Sandboxed bash in exports via `deepclause-agentvm` | accepted |
@@ -38,9 +40,7 @@ single entry point to the project's design.
 
 Planned documents (add a link here when written):
 
-- `docs/CLI.md` — full command and flag reference.
 - `docs/SECURITY.md` — threat model, path confinement, secrets, deployment hardening.
-- `docs/TESTING.md` — unit, integration, golden, and Docker smoke tests.
 - `docs/ROADMAP.md` — milestone tracking (may stay a section of `DESIGN.md` initially).
 
 ## Accepted decisions

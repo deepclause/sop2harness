@@ -1,0 +1,38 @@
+{
+  "name": "sop2harness",
+  "version": "0.1.0",
+  "description": "Turn Standard Operating Procedures into a runnable, versioned DeepClause DML harness.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "s2h": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "docs"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx src/cli.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.10.0",
+    "commander": "^12.1.0",
+    "deepclause-sdk": "0.0.89",
+    "deepclause-pi": "0.5.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.10"
+  }
+}
