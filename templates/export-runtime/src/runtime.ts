@@ -120,9 +120,9 @@ export function provideInput(_id: string, _value: string): boolean {
   return false;
 }
 
-export async function* runSkill(skillId: string, message: string, options: { sessionId: string; signal?: AbortSignal }): AsyncGenerator<DMLEvent> {
+export async function* runSkill(skillId: string, message: string, options: { sessionId: string; signal?: AbortSignal; onEvent?: (event: RunEvent) => void }): AsyncGenerator<DMLEvent> {
   const prompt = `Run the "${skillId}" skill for this request:\n\n${message}`;
-  const answer = await runTurn(options.sessionId, prompt, { signal: options.signal });
+  const answer = await runTurn(options.sessionId, prompt, { signal: options.signal, onEvent: options.onEvent });
   yield { type: "answer", content: answer } as DMLEvent;
 }
 

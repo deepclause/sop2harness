@@ -56,8 +56,28 @@ export async function createMcpServer(): Promise<McpServer> {
       async (args, extra) => {
         const sessionId = args.sessionId ?? `mcp-${randomUUID()}`;
         const session = createSession(sessionId);
+        const progressToken = (extra as { _meta?: { progressToken?: string | number } })._meta?.progressToken;
+        let progress = 0;
+        const notify = async (message: string): Promise<void> => {
+          if (progressToken === undefined || progressToken === null) return;
+          try {
+            await (mcp.server as unknown as { notification: (n: unknown) => Promise<void> }).notification({
+              method: "notifications/progress",
+              params: { progressToken, progress: progress++, message },
+            });
+          } catch {
+            // progress is best-effort
+          }
+        };
         let answer = "(no answer)";
-        for await (const event of runSkill(skill.id, args.message, { sessionId, signal: extra.signal })) {
+        for await (const event of runSkill(skill.id, args.message, {
+          sessionId,
+          signal: extra.signal,
+          onEvent: (runEvent) => {
+            if (runEvent.type === "text") void notify(runEvent.delta);
+            else if (runEvent.type === "tool") void notify(`${runEvent.name} ${runEvent.state}`);
+          },
+        })) {
           if (event.type === "answer" && typeof event.content === "string") answer = event.content;
           if (event.type === "error" && typeof event.content === "string") answer = event.content;
         }
