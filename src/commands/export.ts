@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
-import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolveProject } from "../project.js";
 import { validateHarness } from "../harness/validate.js";
@@ -64,12 +64,18 @@ async function gitHead(root: string): Promise<string | undefined> {
   }
 }
 
+const BINARY_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".wasm", ".woff", ".woff2", ".ttf", ".eot"]);
+
 async function copyTemplateFiles(outDir: string, substitutions: Record<string, string>, excludePrefixes: string[] = []): Promise<void> {
   for (const file of await listFilesRecursive(TEMPLATE_DIR)) {
     const rel = path.relative(TEMPLATE_DIR, file).replaceAll(path.sep, "/");
     if (excludePrefixes.some((prefix) => rel.startsWith(prefix))) continue;
     const target = path.join(outDir, rel);
     await mkdir(path.dirname(target), { recursive: true });
+    if (BINARY_EXTENSIONS.has(path.extname(file).toLowerCase())) {
+      await copyFile(file, target);
+      continue;
+    }
     let content = await readFile(file, "utf8");
     for (const [token, value] of Object.entries(substitutions)) {
       content = content.replaceAll(token, value);
