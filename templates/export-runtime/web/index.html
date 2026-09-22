@@ -8,9 +8,12 @@
 </head>
 <body>
   <header>
-    <div>
-      <h1 id="harness-name">harness</h1>
-      <div id="harness-meta" class="meta"></div>
+    <div class="brand">
+      <img src="/logo.png" alt="DeepClause" class="logo" />
+      <div>
+        <h1 id="harness-name">harness</h1>
+        <div id="harness-meta" class="meta"></div>
+      </div>
     </div>
     <button id="stop-button" class="ghost" disabled>Stop</button>
   </header>
@@ -25,6 +28,14 @@
         <h2>Docs</h2>
         <ul id="docs"></ul>
       </section>
+      <section>
+        <h2>DML</h2>
+        <ul id="dml-files"></ul>
+      </section>
+      <section>
+        <h2>Diagrams</h2>
+        <ul id="diagrams"></ul>
+      </section>
     </aside>
 
     <section id="chat">
@@ -35,6 +46,14 @@
       </form>
     </section>
   </main>
+
+  <div id="viewer" class="viewer hidden">
+    <div class="viewer-header">
+      <span id="viewer-title">Viewer</span>
+      <button id="viewer-close" class="ghost">Close</button>
+    </div>
+    <div id="viewer-body"></div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

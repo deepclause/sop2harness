@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { loadManifest, harnessRoot } from "./harness.js";
@@ -110,6 +110,40 @@ async function resolveDocPath(name: string): Promise<string> {
   const root = path.resolve(harnessRoot());
   if (!absolute.startsWith(root + path.sep) && absolute !== root) throw new Error("not found");
   return absolute;
+}
+
+function deepClauseDir(): string {
+  return path.join(harnessRoot(), ".pi", "deepclause");
+}
+
+function resolveInside(baseDir: string, relPath: string): string {
+  const root = path.resolve(baseDir);
+  const absolute = path.resolve(root, relPath);
+  if (absolute !== root && !absolute.startsWith(root + path.sep)) throw new Error("path escapes workspace");
+  return absolute;
+}
+
+async function listFilesRecursive(dir: string): Promise<string[]> {
+  const result: string[] = [];
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return result;
+    throw error;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) result.push(...(await listFilesRecursive(full)));
+    else if (entry.isFile()) result.push(full);
+  }
+  return result.sort();
+}
+
+async function listWorkspaceFiles(subdir: string): Promise<string[]> {
+  const base = path.join(deepClauseDir(), subdir);
+  const files = await listFilesRecursive(base);
+  return files.map((file) => path.relative(deepClauseDir(), file).replaceAll(path.sep, "/"));
 }
 
 async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -275,6 +309,40 @@ const server = createServer(async (req, res) => {
         json(res, 200, { name: path.basename(file), path: path.relative(harnessRoot(), file), content });
       } catch {
         jsonError(res, 404, "not_found", "doc not found");
+      }
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/dml") {
+      json(res, 200, { files: await listWorkspaceFiles("skills") });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/dml/file") {
+      const rel = url.searchParams.get("path") ?? "";
+      try {
+        const file = resolveInside(deepClauseDir(), rel);
+        const content = await readFile(file, "utf8");
+        json(res, 200, { path: rel, content });
+      } catch {
+        jsonError(res, 404, "not_found", "dml file not found");
+      }
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/diagrams") {
+      json(res, 200, { files: await listWorkspaceFiles("diagrams") });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/diagrams/file") {
+      const rel = url.searchParams.get("path") ?? "";
+      try {
+        const file = resolveInside(deepClauseDir(), rel);
+        const content = await readFile(file, "utf8");
+        json(res, 200, { path: rel, content });
+      } catch {
+        jsonError(res, 404, "not_found", "diagram file not found");
       }
       return;
     }

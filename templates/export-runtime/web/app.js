@@ -2,7 +2,6 @@ const state = {
   sessionId: null,
   skill: null,
   controller: null,
-  reader: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -10,6 +9,68 @@ const messages = $("#messages");
 const input = $("#message-input");
 const sendButton = $("#send-button");
 const stopButton = $("#stop-button");
+const viewer = $("#viewer");
+const viewerTitle = $("#viewer-title");
+const viewerBody = $("#viewer-body");
+const viewerClose = $("#viewer-close");
+
+const PREDICATES = new Set([
+  "agent_main", "answer", "exec", "task", "prompt", "output", "log", "system",
+  "user", "judge", "choose", "rate", "verify", "probability", "holds",
+  "require_judgment", "with_judgment", "with_tools", "without_tools",
+  "get_dict", "format", "string", "integer", "number", "boolean", "list",
+  "object", "read_harness_file", "list_harness_files", "ask_user", "bash",
+  "pi_bash", "length", "string_length", "push_context", "pop_context",
+]);
+
+function escapeHtml(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function highlightDml(src) {
+  const out = [];
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const ch = src[i];
+    if (ch === "%") {
+      let j = i;
+      while (j < n && src[j] !== "\n") j += 1;
+      out.push(`<span class="tok-comment">${escapeHtml(src.slice(i, j))}</span>`);
+      i = j;
+    } else if (ch === '"') {
+      let j = i + 1;
+      while (j < n) {
+        if (src[j] === "\\") { j += 2; continue; }
+        if (src[j] === '"') { j += 1; break; }
+        j += 1;
+      }
+      out.push(`<span class="tok-string">${escapeHtml(src.slice(i, j))}</span>`);
+      i = j;
+    } else if (/[A-Za-z_]/.test(ch)) {
+      let j = i;
+      while (j < n && /[A-Za-z0-9_]/.test(src[j])) j += 1;
+      const word = src.slice(i, j);
+      const cls = PREDICATES.has(word) ? "tok-pred" : (/^[A-Z_]/.test(word) ? "tok-var" : "");
+      out.push(cls ? `<span class="${cls}">${escapeHtml(word)}</span>` : escapeHtml(word));
+      i = j;
+    } else if (/[0-9]/.test(ch)) {
+      let j = i;
+      while (j < n && /[0-9.]/.test(src[j])) j += 1;
+      out.push(`<span class="tok-num">${escapeHtml(src.slice(i, j))}</span>`);
+      i = j;
+    } else {
+      out.push(escapeHtml(ch));
+      i += 1;
+    }
+  }
+  return out.join("");
+}
 
 function addMessage(role, text) {
   const wrapper = document.createElement("div");
@@ -45,6 +106,27 @@ function stop() {
   setRunning(false);
 }
 
+function openViewer(title, body) {
+  viewerTitle.textContent = title;
+  viewerBody.innerHTML = "";
+  viewerBody.appendChild(body);
+  viewer.classList.remove("hidden");
+}
+
+function closeViewer() {
+  viewer.classList.add("hidden");
+  viewerBody.innerHTML = "";
+}
+
+function preBlock(content, className) {
+  const pre = document.createElement("pre");
+  const code = document.createElement("code");
+  if (className) code.className = className;
+  code.innerHTML = content;
+  pre.appendChild(code);
+  return pre;
+}
+
 async function loadSkills() {
   const res = await fetch("/api/skills");
   const data = await res.json();
@@ -71,9 +153,50 @@ async function loadDocs() {
   for (const doc of data.docs) {
     const item = document.createElement("li");
     item.textContent = doc.name;
+    item.title = doc.path;
     item.addEventListener("click", async () => {
       const content = await (await fetch(`/api/docs/${encodeURIComponent(doc.name)}`)).json();
-      addMessage("assistant", `# ${doc.name}\n\n${content.content}`);
+      openViewer(doc.path, preBlock(escapeHtml(content.content)));
+    });
+    list.appendChild(item);
+  }
+}
+
+async function loadDmlFiles() {
+  const res = await fetch("/api/dml");
+  const data = await res.json();
+  const list = $("#dml-files");
+  list.innerHTML = "";
+  for (const file of data.files) {
+    const item = document.createElement("li");
+    item.textContent = file;
+    item.title = file;
+    item.addEventListener("click", async () => {
+      const content = await (await fetch(`/api/dml/file?path=${encodeURIComponent(file)}`)).json();
+      openViewer(file, preBlock(highlightDml(content.content), "dml"));
+    });
+    list.appendChild(item);
+  }
+}
+
+async function loadDiagrams() {
+  const res = await fetch("/api/diagrams");
+  const data = await res.json();
+  const list = $("#diagrams");
+  list.innerHTML = "";
+  for (const file of data.files) {
+    const item = document.createElement("li");
+    item.textContent = file;
+    item.title = file;
+    item.addEventListener("click", async () => {
+      const content = await (await fetch(`/api/diagrams/file?path=${encodeURIComponent(file)}`)).json();
+      if (file.endsWith(".html")) {
+        const iframe = document.createElement("iframe");
+        iframe.srcdoc = content.content;
+        openViewer(file, iframe);
+      } else {
+        openViewer(file, preBlock(escapeHtml(content.content)));
+      }
     });
     list.appendChild(item);
   }
@@ -197,7 +320,13 @@ $("#composer").addEventListener("submit", (event) => {
   send();
 });
 stopButton.addEventListener("click", stop);
+viewerClose.addEventListener("click", closeViewer);
+viewer.addEventListener("click", (event) => {
+  if (event.target === viewer) closeViewer();
+});
 
 loadHarness();
 loadSkills();
 loadDocs();
+loadDmlFiles();
+loadDiagrams();
