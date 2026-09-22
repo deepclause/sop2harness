@@ -7,7 +7,7 @@ run them, and to export them as a small self-hosted API and chat web app.
 `s2h` is a CLI. Its `create` command drives a normal **pi** agent session with the
 **deepclause-pi** extension loaded, so the authoring intelligence is pi and the
 runtime artifact is DML. `commit` versions the harness; `export` produces a
-ready-to-run API, web app, and Docker image.
+ready-to-run API, web chat, MCP server, and Docker image.
 
 The exported app routes requests from the harness `AGENTS.md` policy table
 (mirrored in `harness.json`), reads harness docs, and runs read-only by default.

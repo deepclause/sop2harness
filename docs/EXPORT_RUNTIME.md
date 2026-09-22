@@ -11,12 +11,14 @@ export/
   package.json
   tsconfig.json
   src/
-    server.ts            # HTTP + SSE
+    server.ts            # HTTP + SSE + Streamable HTTP MCP mount
     runtime.ts           # deepclause-sdk wiring, session slots, cancellation
-    backend.ts           # LLMBackend implementation
-    tools.ts             # PHTC + restricted compat tools, path confinement
+    backend.ts           # LLMBackend implementation (bundled pi-ai adapter)
+    tools.ts             # PHTC + compat tools, path confinement, AgentVM sandbox
     harness.ts           # manifest load + validation, skill discovery
-    router.ts            # dispatcher invocation and route:<id> handling
+    router.ts            # host routing: triggers + choose/4 + optional dispatcher
+    mcp.ts               # MCP server: tools, resources, elicitation (ADR-0004)
+    mcp-stdio.ts         # stdio entrypoint for desktop MCP clients
   web/
     index.html
     app.js
@@ -234,7 +236,143 @@ Drops the in-memory session slot.
 - Streaming responses include `Cache-Control: no-store`.
 - Optional bearer-token auth via `S2H_API_TOKEN` (constant-time compare).
 
-## 6. Web chat app
+## 6. MCP server
+
+The exported runtime also serves the harness over the Model Context Protocol
+(ADR-0004). It is enabled by default; `s2h export --no-mcp` omits it. The MCP
+surface uses the same runtime, limits, sandbox rules, and read-only defaults as
+the REST API.
+
+### 6.1 Transports
+
+- **Streamable HTTP** at `S2H_MCP_PATH` (default `/mcp`) on the existing HTTP
+  server. Requires the same bearer token as the REST API (`S2H_API_TOKEN`).
+- **stdio** via `node dist/mcp-stdio.js` (also reachable as `s2h mcp` for a local
+  harness) for desktop clients that spawn a process.
+
+### 6.2 Tools
+
+Tools are generated from `harness.json`: one per skill plus helpers. Names are
+MCP-safe (no slashes): `<prefix>__<skill_slug>`, where `<prefix>` defaults to
+`s2h` and `<skill_slug>` is the skill id with non-alphanumerics replaced by `_`.
+
+| Tool | Arguments | Returns |
+| --- | --- | --- |
+| `s2h__<skill_slug>` | `{ message, sessionId?, answer?, context? }` | Final harness answer as text, plus `structuredContent { skill, answer, route?, usage?, inputRequired?, sessionId? }` |
+| `s2h__route` | `{ message }` | `{ skill, reason, confidence? }` from the router only |
+| `s2h__list_skills` | `{}` | Manifest skills (`id`, `title`, `triggers`, `effects`) |
+| `s2h__read_doc` | `{ path }` | Allowlisted doc content |
+
+Registration sketch:
+
+```ts
+server.registerTool(`${prefix}__${skill.slug}`, {
+  title: skill.title,
+  description: `${skill.title}. Matches: ${skill.triggers.join(", ")}.`,
+  inputSchema: {
+    message: z.string().describe("Natural-language request for this procedure"),
+    sessionId: z.string().optional(),
+    answer: z.string().optional().describe("Reply to a previous inputRequired prompt"),
+    context: z.enum(["turn", "branch", "isolated"]).optional(),
+  },
+  outputSchema: {
+    skill: z.string(),
+    answer: z.string(),
+    route: z.string().optional(),
+    usage: z.object({ inputTokens: z.number(), outputTokens: z.number() }).optional(),
+    inputRequired: z.boolean().optional(),
+    sessionId: z.string().optional(),
+  },
+  annotations: { readOnlyHint: true, openWorldHint: false },
+}, async ({ message, sessionId, answer, context }, extra) => {
+  const result = await runtime.runSkill({ skillId: skill.id, message, sessionId, answer, context, signal: extra.signal });
+  return { content: [{ type: "text", text: result.answer }], structuredContent: result };
+});
+```
+
+Annotations reflect the harness: `readOnlyHint: true` unless the manifest
+reports effects; `openWorldHint: true` only when the sandbox allows egress.
+
+### 6.3 Resources
+
+| URI | Content |
+| --- | --- |
+| `harness://manifest` | `harness.json` (`application/json`) |
+| `harness://docs/<path>` | Allowlisted docs (`text/markdown`), same confinement as `/api/docs/:name` |
+| `harness://sops/<path>` | Ingested SOP sources (`text/markdown`) |
+
+Only manifest `docs` entries and `sops/` files are listed and readable. Resource
+reads are size-capped and root-confined.
+
+### 6.4 `ask_user` → elicitation
+
+When a skill calls `ask_user`, the server prefers MCP elicitation:
+
+```ts
+const result = await server.elicitInput({
+  message: prompt,
+  requestedSchema: {
+    type: "object",
+    properties: { response: { type: "string", title: "Your answer" } },
+    required: ["response"],
+  },
+});
+// result.action: "accept" | "decline" | "cancel"; result.content.response
+```
+
+If the client does not support elicitation, the tool returns
+`structuredContent { inputRequired: true, sessionId, prompt }` with the question
+as text and the run suspended. The client re-invokes the skill tool with
+`{ sessionId, answer }` to resume. Suspended sessions are in-memory and expire
+with `S2H_MCP_SESSION_TTL_MS` (default 10 minutes). Streamable HTTP sessions are
+kept per MCP session id; stdio uses one implicit session.
+
+### 6.5 Progress and cancellation
+
+- When the tool call carries a progress token, map DML `task_activity` and
+  `tool_call` events to `notifications/progress`; the final `answer` is the tool
+  result.
+- Honor the tool callback's `extra.signal` (and Streamable HTTP request abort)
+  by aborting the run's `AbortController`, the same path as `/api/sessions/:id/cancel`.
+- One active run per MCP session; concurrent calls for the same session are
+  rejected with an MCP tool error.
+
+### 6.6 Configuration and client setup
+
+```dotenv
+S2H_MCP_ENABLED=true
+S2H_MCP_TRANSPORT=both          # http | stdio | both
+S2H_MCP_PATH=/mcp
+S2H_MCP_TOOL_PREFIX=s2h
+S2H_MCP_SESSION_TTL_MS=600000
+S2H_MCP_MAX_SESSIONS=32
+```
+
+Client examples (key names vary by client):
+
+```jsonc
+// Streamable HTTP
+{ "mcpServers": { "who-anc": {
+  "type": "http",
+  "url": "http://localhost:8080/mcp",
+  "headers": { "Authorization": "Bearer <S2H_API_TOKEN>" }
+} } }
+```
+
+```jsonc
+// stdio inside the exported image
+{ "mcpServers": { "who-anc": {
+  "command": "docker",
+  "args": ["run", "-i", "--rm", "--env-file", ".env", "s2h-export:who-anc",
+           "node", "dist/mcp-stdio.js"]
+} } }
+```
+
+MCP responses never include secrets, raw prompts, or filesystem paths outside
+the harness root. Bearer auth applies to Streamable HTTP only; stdio is
+trusted-local and must not be exposed over a network by wrapping it in a socket.
+
+## 7. Web chat app
 
 A single static page served at `/`, no build step, using `fetch` + SSE.
 
@@ -251,7 +389,7 @@ A single static page served at `/`, no build step, using `fetch` + SSE.
 The web app never sees the filesystem directly; everything goes through the
 allowlisted API. It is presentation-only: calling DMLs and reading docs.
 
-## 7. Docker
+## 8. Docker
 
 Generated `Dockerfile` (multi-stage):
 
@@ -283,6 +421,8 @@ CMD ["node", "dist/server.js"]
 
 Properties:
 - Non-root (`node`), no build toolchain in the runtime layer.
+- Serves the REST API, web chat, and the Streamable HTTP MCP endpoint from
+  `dist/server.js`; stdio MCP clients run `node dist/mcp-stdio.js` instead.
 - `harness/` is copied, not mounted, for immutability; an operator may mount a
   read-only volume over it for updates.
 - Secrets are never baked in; pass with `--env-file` or an orchestrator secret.
@@ -293,7 +433,7 @@ Properties:
   `security_opt: [no-new-privileges:true]`, and egress restricted to the LLM
   endpoint.
 
-### 7.1 AgentVM sandbox in the image
+### 8.1 AgentVM sandbox in the image
 
 When the harness declares shell tools, `s2h export` also copies the
 `deepclause-agentvm` WASM image into the runtime layer:
@@ -316,7 +456,7 @@ Consequences:
 - Consider a separate base tag (`s2h-export:<ver>-sandbox`) published once and
   reused, so harness images stay small.
 
-## 8. Configuration
+## 9. Configuration
 
 `.env.example` (names only):
 
@@ -343,6 +483,14 @@ S2H_AGENTVM_WASM=./node_modules/deepclause-agentvm/agentvm-alpine-python.wasm
 S2H_SANDBOX_DIR=/var/lib/s2h/sandbox
 S2H_SANDBOX_NETWORK_RATE=2097152
 
+# MCP server (ADR-0004)
+S2H_MCP_ENABLED=true
+S2H_MCP_TRANSPORT=both         # http | stdio | both
+S2H_MCP_PATH=/mcp
+S2H_MCP_TOOL_PREFIX=s2h
+S2H_MCP_SESSION_TTL_MS=600000
+S2H_MCP_MAX_SESSIONS=32
+
 # Optional calibrated judge (TypeSafe System One)
 TYPESAFE_API_KEY=
 ```
@@ -352,12 +500,14 @@ from `harness.json`, not the environment, so the deployed harness is the
 versioned one. Environment variables only select the host backend and supply
 secrets.
 
-## 9. Security checklist
+## 10. Security checklist
 
 - [ ] Shell runs only inside the AgentVM sandbox; network is off unless an
       `allow` firewall list is declared; harness mount is read-only.
 - [ ] All file access is root-confined and realpath-checked.
-- [ ] Only manifest-listed skills run; no DML upload endpoint.
+- [ ] Only manifest-listed skills run; no DML upload endpoint. The MCP surface
+      exposes only those skills and allowlisted docs, and Streamable HTTP
+      requires the bearer token.
 - [ ] Read-only export unless `--allow-effects` was passed.
 - [ ] Secrets only from the environment; never in images, logs, or responses.
 - [ ] Request size, message length, concurrency, timeout, and sandbox
@@ -368,7 +518,7 @@ secrets.
       reproducibility.
 - [ ] Logs carry no prompt bodies by default.
 
-## 10. Reproducibility
+## 11. Reproducibility
 
 `harness.lock.json` records: s2h version, `deepclause-sdk` version,
 `deepclause-pi` version, `deepclause-agentvm` version, harness version + git
@@ -376,7 +526,7 @@ commit, and a content hash of `harness/`. `s2h export --tag <version>` checks th
 tag out into a temporary worktree before generating, so a given tag always yields
 the same harness copy.
 
-## 11. Routing reference
+## 12. Routing reference
 
 The router used by `POST /api/chat` (ADR-0003):
 

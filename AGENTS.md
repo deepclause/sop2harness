@@ -33,6 +33,7 @@ single entry point to the project's design.
 | [docs/DECISIONS/ADR-0001-sandboxed-bash-via-agentvm.md](docs/DECISIONS/ADR-0001-sandboxed-bash-via-agentvm.md) | Sandboxed bash in exports via `deepclause-agentvm` | accepted |
 | [docs/DECISIONS/ADR-0002-bundle-pi-adapter.md](docs/DECISIONS/ADR-0002-bundle-pi-adapter.md) | Bundle the pi-ai adapter as the export LLM backend | accepted |
 | [docs/DECISIONS/ADR-0003-agents-md-routing.md](docs/DECISIONS/ADR-0003-agents-md-routing.md) | Host-side routing from the harness `AGENTS.md` policy table | accepted |
+| [docs/DECISIONS/ADR-0004-mcp-server-for-exported-harness.md](docs/DECISIONS/ADR-0004-mcp-server-for-exported-harness.md) | Expose the exported harness as an MCP server (HTTP + stdio) | accepted |
 
 Planned documents (add a link here when written):
 
@@ -55,6 +56,10 @@ These are binding for the design unless superseded by a new ADR:
 3. **`AGENTS.md` routing (ADR-0003).** Routing is defined by the harness
    `AGENTS.md` policy table, mirrored in `harness.json.skills[].triggers`; a
    dispatcher DML is optional.
+4. **MCP server (ADR-0004).** Every export also serves the harness over MCP:
+   per-skill tools plus resources, Streamable HTTP at `/mcp` and a stdio
+   entrypoint, with `ask_user` mapped to elicitation and an `inputRequired`
+   fallback.
 
 ## Working rules
 
