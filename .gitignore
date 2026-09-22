@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+export/
+
+# Authoring sessions and local state
+.s2h/sessions/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Packaging
+*.tgz
+
+# OS noise
+.DS_Store
+Thumbs.db
