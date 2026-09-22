@@ -9,6 +9,7 @@ import { statusCommand } from "./commands/status.js";
 import { createCommand } from "./commands/create.js";
 import { commitCommand } from "./commands/commit.js";
 import { exportCommand } from "./commands/export.js";
+import { testCommand } from "./commands/test.js";
 import * as ui from "./ui.js";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
@@ -169,6 +170,35 @@ program
   .description("Validate the harness without changing it")
   .action(async () => {
     await run(() => checkCommand(process.cwd()));
+  });
+
+program
+  .command("test")
+  .description("Validate, inspect diagrams, and smoke-run skills")
+  .option("--skill <id>", "test only one skill id")
+  .option("--input <text>", "test request (defaults to each skill's first trigger)")
+  .option("--mock", "use a deterministic mock model backend")
+  .option("--live", "use a real pi model backend")
+  .option("--no-run", "skip the smoke runs (validate + diagrams only)")
+  .option("--model <provider/id>", "pi model for --live runs")
+  .action(async (options: {
+    skill?: string;
+    input?: string;
+    mock?: boolean;
+    live?: boolean;
+    noRun?: boolean;
+    model?: string;
+  }) => {
+    await run(() =>
+      testCommand(process.cwd(), {
+        skill: options.skill,
+        input: options.input,
+        mock: options.mock,
+        live: options.live,
+        noRun: options.noRun,
+        model: options.model,
+      }),
+    );
   });
 
 program
