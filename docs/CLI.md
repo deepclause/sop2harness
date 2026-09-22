@@ -4,6 +4,7 @@ Command and flag reference for `s2h`.
 
 Status note: Phase 1 implemented `init`, `check`, `list`, and `status`.
 Phase 2 implemented `create` (SOP ingestion + pi authoring session + validation).
+Phase 3 implemented `commit` (semver bump, git commit/tag, version history).
 The remaining commands are wired into the CLI with their documented options but
 report "not implemented yet" until their roadmap phase lands.
 
@@ -79,6 +80,37 @@ Flow:
 
 `create` leaves generated files in place for inspection when validation fails.
 
+## `s2h commit`
+
+```
+s2h commit [-m <message>] [--major|--minor|--patch] [--no-tag] [--dry-run]
+```
+
+Validates the harness, bumps `harness.json.version`, commits the harness, tags
+it, and records the version in `.s2h/versions.json`.
+
+Flow:
+
+1. Run the deterministic validation gate; refuse to commit an invalid harness.
+2. Bump the version (`--patch` is the default; `--major`/`--minor` are explicit).
+3. Commit `s2h.json`, `.gitignore`, and `harness/` with the supplied or default
+   message (`harness v<version>`).
+4. Tag `v<version>` unless `--no-tag` is passed.
+5. Append `{ version, commit, date, message, session }` to `.s2h/versions.json`
+   and commit that record in a follow-up metadata commit (so the recorded hash
+   is the real content-commit hash).
+
+| Flag | Effect |
+| --- | --- |
+| `-m, --message <message>` | Commit message. Defaults to `harness v<version>`. |
+| `--major` / `--minor` / `--patch` | Version bump. Patch is the default. |
+| `--no-tag` | Skip creating the `v<version>` tag. |
+| `--dry-run` | Print the plan without writing or committing. |
+
+`commit` requires a git repository and, for tagging, a missing `v<version>`.
+The authoring session recorded by `create` is referenced from the version entry
+when available.
+
 ## `s2h check`
 
 ```
@@ -125,7 +157,6 @@ working-tree state, and the last committed version.
 
 | Command | Roadmap phase | Status |
 | --- | --- | --- |
-| `s2h commit` | 3 | stub |
 | `s2h export` | 4 | stub |
 | `s2h run` | 4 | stub |
 | `s2h config` | planned helper | stub |

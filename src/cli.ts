@@ -7,6 +7,7 @@ import { checkCommand } from "./commands/check.js";
 import { listCommand } from "./commands/list.js";
 import { statusCommand } from "./commands/status.js";
 import { createCommand } from "./commands/create.js";
+import { commitCommand } from "./commands/commit.js";
 import * as ui from "./ui.js";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
@@ -91,8 +92,24 @@ program
   .option("--patch", "bump the patch version (default)")
   .option("--no-tag", "do not create a git tag")
   .option("--dry-run", "print the plan without committing")
-  .action(() => {
-    process.exitCode = stub("commit", "Phase 3");
+  .action(async (options: {
+    message?: string;
+    major?: boolean;
+    minor?: boolean;
+    patch?: boolean;
+    tag?: boolean;
+    dryRun?: boolean;
+  }) => {
+    await run(() =>
+      commitCommand(process.cwd(), {
+        message: options.message,
+        major: options.major,
+        minor: options.minor,
+        patch: options.patch,
+        tag: options.tag,
+        dryRun: options.dryRun,
+      }),
+    );
   });
 
 program

@@ -7,13 +7,14 @@
 
 ```
 tests/
-  semver.test.ts     version string validation
+  semver.test.ts     version string validation and version bumps
   router.test.ts     harness AGENTS.md policy-table parsing
   validate.test.ts   deterministic harness validation gate
   init.test.ts       s2h init scaffolding + post-init validation
   ingest.test.ts     SOP ingestion, normalisation, and idempotent re-ingest
   request.test.ts    authoring request construction
   create.test.ts     create command guards
+  commit.test.ts     version bump, git commit/tag, versions.json recording
 ```
 
 ## What is covered
@@ -31,6 +32,9 @@ tests/
 - **Ingestion** — Markdown is normalised, indexed, and re-ingested idempotently;
   directories are ingested recursively.
 - **Create guards** — `create` refuses to run without a request or `--file`.
+- **Commit** — dry-run makes no changes; a real commit bumps the harness
+  version, creates the tag, records the real content-commit hash in
+  `.s2h/versions.json`, and leaves the working tree clean.
 
 ## Future phases
 
