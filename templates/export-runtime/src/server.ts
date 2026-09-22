@@ -4,7 +4,8 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { loadManifest, harnessRoot } from "./harness.js";
 import { cancelSession, createSession, deleteSession, disposeAll, getSession, provideInput, runTurn } from "./runtime.js";
-__MCP_IMPORT__
+import { createMcpServer } from "./mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const REQUEST_MAX_BYTES = Number(process.env.S2H_REQUEST_MAX_BYTES ?? 262_144);
@@ -206,6 +207,9 @@ async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<vo
           case "thinking":
             sendEvent(res, "stream", { delta: event.delta, kind: "thinking" });
             break;
+          case "trace":
+            sendEvent(res, "trace", { text: event.text });
+            break;
           case "tool":
             sendEvent(res, "tool_call", {
               name: event.name,
@@ -334,7 +338,15 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    __MCP_HANDLER__
+    if (mcpTransport && url.pathname === MCP_PATH) {
+      try {
+        const body = req.method === "POST" ? await readJsonBody(req) : undefined;
+        await mcpTransport.handleRequest(req, res, body);
+      } catch (error) {
+        jsonError(res, 500, "mcp_error", error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
 
     const inputMatch = /^\/api\/sessions\/([A-Za-z0-9_-]{1,64})\/input$/.exec(url.pathname);
     if (req.method === "POST" && inputMatch) {
@@ -395,7 +407,16 @@ const server = createServer(async (req, res) => {
   }
 });
 
-__MCP_MOUNT_SETUP__
+let mcpTransport: StreamableHTTPServerTransport | undefined;
+if (process.env.S2H_MCP_ENABLED !== "false") {
+  try {
+    const mcpServer = await createMcpServer();
+    mcpTransport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomBytes(16).toString("hex") });
+    await mcpServer.connect(mcpTransport);
+  } catch (error) {
+    console.warn("MCP server disabled:", error instanceof Error ? error.message : String(error));
+  }
+}
 server.listen(PORT, () => {
   console.log(`s2h export listening on http://127.0.0.1:${PORT}`);
 });

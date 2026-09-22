@@ -235,6 +235,13 @@ function addAssistantMessage() {
   const thinkingPre = document.createElement("pre");
   thinkingPre.textContent = "";
   thinkingBlock.append(thinkingSummary, thinkingPre);
+  const traceBlock = document.createElement("details");
+  traceBlock.className = "trace-block";
+  const traceSummary = document.createElement("summary");
+  traceSummary.textContent = "Decision trace";
+  const tracePre = document.createElement("pre");
+  tracePre.textContent = "";
+  traceBlock.append(traceSummary, tracePre);
   const toolList = document.createElement("div");
   toolList.className = "tool-list";
   const promptBlock = document.createElement("div");
@@ -243,9 +250,9 @@ function addAssistantMessage() {
   textBlock.className = "markdown";
   const footer = document.createElement("div");
   footer.className = "usage-footer";
-  content.append(routeChip, thinkingBlock, toolList, promptBlock, textBlock, footer);
+  content.append(routeChip, thinkingBlock, traceBlock, toolList, promptBlock, textBlock, footer);
   bubble.appendChild(content);
-  return { bubble, content, routeChip, thinkingBlock, thinkingSummary, thinkingPre, toolList, promptBlock, textBlock, footer };
+  return { bubble, content, routeChip, thinkingBlock, thinkingSummary, thinkingPre, traceBlock, tracePre, toolList, promptBlock, textBlock, footer };
 }
 
 function addActivity(text) {
@@ -430,6 +437,7 @@ async function send() {
   let finalText = "";
   let answered = false;
   const runningTools = [];
+  const traceSeen = new Set();
 
   try {
     const response = await fetch("/api/chat", {
@@ -459,11 +467,23 @@ async function send() {
           }
           break;
         }
+        case "trace": {
+          const text = data.text || "";
+          const lines = text.split("\n").filter((line) => line.trim());
+          for (const line of lines) {
+            if (traceSeen.has(line)) continue;
+            traceSeen.add(line);
+            assistant.tracePre.textContent += `${line}\n`;
+          }
+          assistant.traceBlock.open = true;
+          break;
+        }
         case "answer":
           finalText = data.content || finalText;
           answered = true;
           assistant.thinkingBlock.open = false;
           assistant.thinkingSummary.classList.remove("active");
+          assistant.traceBlock.open = false;
           assistant.textBlock.innerHTML = renderMarkdown(finalText);
           break;
         case "tool_call": {
@@ -520,6 +540,7 @@ async function send() {
   } finally {
     assistant.thinkingBlock.open = false;
     assistant.thinkingSummary.classList.remove("active");
+    assistant.traceBlock.open = false;
     setRunning(false);
     state.controller = null;
     input.placeholder = "Ask the harness…";

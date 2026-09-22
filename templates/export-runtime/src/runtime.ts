@@ -17,6 +17,7 @@ const require = createRequire(import.meta.url);
 export type RunEvent =
   | { type: "text"; delta: string }
   | { type: "thinking"; delta: string }
+  | { type: "trace"; text: string }
   | { type: "tool"; name: string; state: "start" | "end"; args?: unknown; result?: unknown; isError?: boolean };
 
 export interface PendingRun {
@@ -98,6 +99,15 @@ async function createAgentSessionForRuntime(session: Session): Promise<AgentSess
   return agent;
 }
 
+function extractPartialText(partial: unknown): string {
+  if (!partial || typeof partial !== "object") return "";
+  const candidate = partial as { content?: Array<{ type?: string; text?: string }> };
+  return (candidate.content ?? [])
+    .filter((block) => block.type === "text")
+    .map((block) => block.text ?? "")
+    .join("\n");
+}
+
 function assistantText(agent: AgentSession): string {
   const messages = agent.messages ?? [];
   for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -147,6 +157,14 @@ export async function runTurn(sessionId: string, message: string, options: RunTu
       case "tool_execution_start":
         options.onEvent?.({ type: "tool", name: event.toolName, state: "start", args: (event as { args?: unknown }).args });
         break;
+      case "tool_execution_update": {
+        if (event.toolName === "dc_run") {
+          const partial = (event as { partialResult?: unknown }).partialResult;
+          const text = extractPartialText(partial);
+          if (text) options.onEvent?.({ type: "trace", text });
+        }
+        break;
+      }
       case "tool_execution_end":
         options.onEvent?.({
           type: "tool",
