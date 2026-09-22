@@ -1,0 +1,15 @@
+% POLICY: anc-quick-check
+% SOP: sops/who-anc/quick-check.md
+% Effects: none
+
+agent_main(Request) :-
+    Request \= "",
+    judge(Request, [
+        verify("Does the request mention a danger sign (bleeding, fever, reduced fetal movement, severe headache)?") - Danger,
+        choose("What is the urgency of this contact?", [routine, urgent, emergency]) - Urgency
+    ]),
+    format(string(Answer), "Danger sign: ~w. Urgency: ~w", [Danger, Urgency]),
+    answer(Answer).
+
+agent_main(_) :-
+    answer("Describe the antenatal contact.").

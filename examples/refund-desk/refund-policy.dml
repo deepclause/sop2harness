@@ -1,0 +1,16 @@
+% POLICY: refund-policy
+% SOP: sops/refund-desk/README.md
+% Effects: none
+
+agent_main(Request) :-
+    Request \= "",
+    exec(read_harness_file(path: "AGENTS.md"), FileResult),
+    get_dict(content, FileResult, Policy),
+    format(string(Prompt),
+        "Apply the refund policy below to this request. Store the decision and a short reason in Decision.\n\nPolicy:\n~w\n\nRequest: ~w",
+        [Policy, Request]),
+    task(Prompt, string(Decision)),
+    answer(Decision).
+
+agent_main(_) :-
+    answer("Supply a request about refunds or returns.").

@@ -1,0 +1,6 @@
+flowchart TD
+  A[agent_main Request] --> B["judge: verify danger sign"]
+  B --> C["judge: choose urgency"]
+  C --> D["answer danger + urgency"]
+  A --> E["agent_main _ fallback"]
+  E --> F["answer usage message"]

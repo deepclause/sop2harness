@@ -1,0 +1,6 @@
+flowchart TD
+  A[Customer request] --> B{Refund eligible?}
+  B -->|"within 30 days and unused"| C[Approve refund]
+  B -->|otherwise| D[Deny refund]
+  C --> E[Return decision + reason]
+  D --> E

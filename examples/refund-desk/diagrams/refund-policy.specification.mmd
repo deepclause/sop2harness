@@ -1,0 +1,6 @@
+flowchart TD
+  A[agent_main Request] --> B["exec read_harness_file AGENTS.md"]
+  B --> C["task: apply policy -> Decision"]
+  C --> D["answer Decision"]
+  A --> E["agent_main _ fallback"]
+  E --> F["answer usage message"]
