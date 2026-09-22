@@ -12,7 +12,7 @@ const REQUEST_MAX_BYTES = Number(process.env.S2H_REQUEST_MAX_BYTES ?? 262_144);
 const RUN_TIMEOUT_MS = Number(process.env.S2H_RUN_TIMEOUT_MS ?? 120_000);
 const MAX_CONCURRENT_RUNS = Number(process.env.S2H_MAX_CONCURRENT_RUNS ?? 2);
 const API_TOKEN = process.env.S2H_API_TOKEN;
-const WEB_DIR = process.env.S2H_WEB_DIR;
+const WEB_DIR = process.env.S2H_WEB_DIR ?? path.join(process.cwd(), "web");
 const MCP_PATH = process.env.S2H_MCP_PATH ?? "/mcp";
 
 const CONTENT_TYPES: Record<string, string> = {
