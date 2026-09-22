@@ -70,6 +70,18 @@ describe("exportCommand", () => {
     await expect(readFile(path.join(root, "export", "Dockerfile"), "utf8")).resolves.toContain("agentvm-alpine-python.wasm");
   });
 
+  it("includes the MCP server by default and omits it with --no-mcp", async () => {
+    const root = await tempProject();
+    expect(await exportCommand(root, { out: "export" })).toBe(0);
+    await expect(readFile(path.join(root, "export", "src", "mcp.ts"), "utf8")).resolves.toContain("notifications/progress");
+    await expect(readFile(path.join(root, "export", "package.json"), "utf8")).resolves.toContain("@modelcontextprotocol/sdk");
+
+    const slim = path.join(root, "slim");
+    expect(await exportCommand(root, { out: "slim", mcp: false })).toBe(0);
+    await expect(readFile(path.join(root, "slim", "src", "mcp.ts"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(path.join(root, "slim", "package.json"), "utf8")).resolves.not.toContain("@modelcontextprotocol/sdk");
+  });
+
   it("rejects a shell harness when --sandbox none is forced", async () => {
     const root = await tempProject();
     await writeFile(

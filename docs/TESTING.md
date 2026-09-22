@@ -37,9 +37,9 @@ tests/
   version, creates the tag, records the real content-commit hash in
   `.s2h/versions.json`, and leaves the working tree clean.
 - **Export** — generates the server/harness skeleton, web chat app, Dockerfile,
-  compose file, and `harness.lock.json`; `--no-web` omits the web layer; shell
-  harnesses export with the AgentVM sandbox by default and reject
-  `--sandbox none`.
+  compose file, MCP server, and `harness.lock.json`; `--no-web` omits the web
+  layer and `--no-mcp` omits MCP; shell harnesses export with the AgentVM
+  sandbox by default and reject `--sandbox none`.
 
 ## Future phases
 

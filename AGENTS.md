@@ -67,10 +67,10 @@ These are binding for the design unless superseded by a new ADR:
 
 - **Docs first.** Change or add a design doc before or with the code. Keep the
   index above current; never link a document that does not exist.
-- **Implementation is underway in roadmap order.** Phases 1–6 (`init`,
+- **Implementation is underway in roadmap order.** Phases 1–7 (`init`,
   `check`, `list`, `status`, `create`, `commit`, `export` with web chat, Docker,
-  and AgentVM sandbox) are landed. Do not scaffold later phases without an
-  explicit request.
+  AgentVM sandbox, and MCP server) are landed. Do not scaffold later phases
+  without an explicit request.
 - **Do not fork the siblings.** Use `deepclause-pi` for authoring and
   `deepclause-sdk` for the export runtime. If a capability is missing, record it
   as an open question or an ADR, then extend the sibling deliberately.

@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { loadManifest, harnessRoot } from "./harness.js";
 import { routeRequest } from "./router.js";
 import { cancelSession, createSession, deleteSession, disposeAll, getSession, provideInput, runSkill } from "./runtime.js";
+__MCP_IMPORT__
 
 const PORT = Number(process.env.PORT ?? 8080);
 const REQUEST_MAX_BYTES = Number(process.env.S2H_REQUEST_MAX_BYTES ?? 262_144);
@@ -12,6 +13,7 @@ const RUN_TIMEOUT_MS = Number(process.env.S2H_RUN_TIMEOUT_MS ?? 120_000);
 const MAX_CONCURRENT_RUNS = Number(process.env.S2H_MAX_CONCURRENT_RUNS ?? 2);
 const API_TOKEN = process.env.S2H_API_TOKEN;
 const WEB_DIR = process.env.S2H_WEB_DIR;
+const MCP_PATH = process.env.S2H_MCP_PATH ?? "/mcp";
 
 const CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -181,6 +183,9 @@ async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<vo
           break;
         case "tool_call":
           sendEvent(res, "tool_call", { name: event.toolName, state: event.toolState ?? "running" });
+          if (event.toolName === "ask_user" && event.toolState === "starting") {
+            sendEvent(res, "input_required", { prompt: String((event.toolArgs as Record<string, unknown> | undefined)?.prompt ?? "") });
+          }
           break;
         case "task_activity":
           sendEvent(res, "task_activity", { state: event.taskState ?? "running", description: event.taskDescription ?? "" });
@@ -279,6 +284,8 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    __MCP_HANDLER__
+
     const inputMatch = /^\/api\/sessions\/([A-Za-z0-9_-]{1,64})\/input$/.exec(url.pathname);
     if (req.method === "POST" && inputMatch) {
       const sessionId = inputMatch[1]!;
@@ -338,6 +345,7 @@ const server = createServer(async (req, res) => {
   }
 });
 
+__MCP_MOUNT_SETUP__
 server.listen(PORT, () => {
   console.log(`s2h export listening on http://127.0.0.1:${PORT}`);
 });

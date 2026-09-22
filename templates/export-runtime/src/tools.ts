@@ -2,6 +2,7 @@ import { realpath, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { DeepClauseSDK } from "deepclause-sdk";
 import type { Sandbox } from "./sandbox.js";
+import type { Session } from "./runtime.js";
 
 function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
@@ -34,6 +35,7 @@ export function registerHarnessTools(
   root: string,
   tools: string[],
   compat: string[],
+  session: Session,
   sandbox?: Sandbox,
 ): void {
   if (tools.includes("read_harness_file")) {
@@ -67,6 +69,25 @@ export function registerHarnessTools(
         const real = await resolveInside(root, relPath);
         const entries = await readdir(real);
         return { entries: entries.sort() };
+      },
+    });
+  }
+
+  if (tools.includes("ask_user")) {
+    sdk.registerTool("ask_user", {
+      description: "Ask the user one focused question and return their response.",
+      parameters: {
+        type: "object",
+        properties: { prompt: { type: "string", description: "The question to show the user" } },
+        required: ["prompt"],
+      },
+      execute: async (args) => {
+        const prompt = typeof args.prompt === "string" ? args.prompt : "";
+        return new Promise<{ user_response: string }>((resolve, reject) => {
+          session.resolveInput = (value) => resolve({ user_response: value });
+          session.rejectInput = reject;
+          if (session.controller.signal.aborted) reject(new Error("session aborted while waiting for input"));
+        });
       },
     });
   }

@@ -13,6 +13,14 @@ export interface Session {
   rejectInput?: (error: Error) => void;
   sdkPromise?: Promise<DeepClauseSDK>;
   sandbox?: Sandbox;
+  pendingRun?: PendingRun;
+}
+
+export interface PendingRun {
+  iterator: AsyncGenerator<DMLEvent>;
+  nextPromise: Promise<IteratorResult<DMLEvent>>;
+  skillId: string;
+  reason: string;
 }
 
 const sessions = new Map<string, Session>();
@@ -93,7 +101,7 @@ async function createSessionSdk(session: Session): Promise<DeepClauseSDK> {
     });
   }
 
-  registerHarnessTools(sdk, harnessRoot(), manifest.runtime.tools, manifest.runtime.compat, session.sandbox);
+  registerHarnessTools(sdk, harnessRoot(), manifest.runtime.tools, manifest.runtime.compat, session, session.sandbox);
   return sdk;
 }
 

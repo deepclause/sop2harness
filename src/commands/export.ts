@@ -64,9 +64,10 @@ async function gitHead(root: string): Promise<string | undefined> {
   }
 }
 
-async function copyTemplateFiles(outDir: string, substitutions: Record<string, string>): Promise<void> {
+async function copyTemplateFiles(outDir: string, substitutions: Record<string, string>, excludePrefixes: string[] = []): Promise<void> {
   for (const file of await listFilesRecursive(TEMPLATE_DIR)) {
-    const rel = path.relative(TEMPLATE_DIR, file);
+    const rel = path.relative(TEMPLATE_DIR, file).replaceAll(path.sep, "/");
+    if (excludePrefixes.some((prefix) => rel.startsWith(prefix))) continue;
     const target = path.join(outDir, rel);
     await mkdir(path.dirname(target), { recursive: true });
     let content = await readFile(file, "utf8");
@@ -138,11 +139,15 @@ export async function exportCommand(cwd: string, options: ExportOptions): Promis
   await mkdir(outDir, { recursive: true });
 
   const includeWeb = options.web !== false;
+  const includeMcp = options.mcp !== false;
   const runtimeEnv = includeWeb
     ? "NODE_ENV=production PORT=8080 S2H_HARNESS_DIR=/app/harness S2H_WEB_DIR=/app/web"
     : "NODE_ENV=production PORT=8080 S2H_HARNESS_DIR=/app/harness";
   const webCopy = includeWeb ? "COPY web ./web" : "# web app omitted (--no-web)";
   const agentvmDep = includeSandbox ? ",\n    \"deepclause-agentvm\": \"0.4.0\"" : "";
+  const mcpDep = includeMcp
+    ? ",\n    \"@modelcontextprotocol/sdk\": \"1.25.3\",\n    \"zod\": \"^3.25.0\""
+    : "";
   const sandboxCopy = includeSandbox
     ? "COPY --from=build /app/node_modules/deepclause-agentvm/agentvm-alpine-python.wasm ./agentvm/"
     : "# agentvm sandbox omitted";
@@ -150,19 +155,53 @@ export async function exportCommand(cwd: string, options: ExportOptions): Promis
     ? "ENV S2H_AGENTVM_WASM=/app/agentvm/agentvm-alpine-python.wasm\nENV S2H_SANDBOX_DIR=/var/lib/s2h/sandbox"
     : "# agentvm sandbox omitted";
   const sandboxVolume = includeSandbox ? 'VOLUME ["/var/lib/s2h/sandbox"]' : "# agentvm sandbox omitted";
+  const mcpImport = includeMcp
+    ? 'import { createMcpServer } from "./mcp.js";\nimport { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";'
+    : "";
+  const mcpMountSetup = includeMcp
+    ? `let mcpTransport: StreamableHTTPServerTransport | undefined;
+if (process.env.S2H_MCP_ENABLED !== "false") {
+  try {
+    const mcpServer = await createMcpServer();
+    mcpTransport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomBytes(16).toString("hex") });
+    await mcpServer.connect(mcpTransport);
+  } catch (error) {
+    console.warn("MCP server disabled:", error instanceof Error ? error.message : String(error));
+  }
+}`
+    : "";
+  const mcpHandler = includeMcp
+    ? `if (mcpTransport && url.pathname === MCP_PATH) {
+      try {
+        const body = req.method === "POST" ? await readJsonBody(req) : undefined;
+        await mcpTransport.handleRequest(req, res, body);
+      } catch (error) {
+        jsonError(res, 500, "mcp_error", error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }`
+    : "";
 
   // Harness copy (read-only at runtime) + generated runtime.
   await cp(paths.harnessDir, path.join(outDir, "harness"), { recursive: true });
-  await copyTemplateFiles(outDir, {
-    __HARNESS_NAME__: manifest.name,
-    __HARNESS_VERSION__: manifest.version,
-    __RUNTIME_ENV__: runtimeEnv,
-    __WEB_COPY__: webCopy,
-    __AGENTVM_DEP__: agentvmDep,
-    __SANDBOX_COPY__: sandboxCopy,
-    __SANDBOX_ENV__: sandboxEnv,
-    __SANDBOX_VOLUME__: sandboxVolume,
-  });
+  await copyTemplateFiles(
+    outDir,
+    {
+      __HARNESS_NAME__: manifest.name,
+      __HARNESS_VERSION__: manifest.version,
+      __RUNTIME_ENV__: runtimeEnv,
+      __WEB_COPY__: webCopy,
+      __AGENTVM_DEP__: agentvmDep,
+      __MCP_DEP__: mcpDep,
+      __SANDBOX_COPY__: sandboxCopy,
+      __SANDBOX_ENV__: sandboxEnv,
+      __SANDBOX_VOLUME__: sandboxVolume,
+      __MCP_IMPORT__: mcpImport,
+      __MCP_MOUNT_SETUP__: mcpMountSetup,
+      __MCP_HANDLER__: mcpHandler,
+    },
+    includeMcp ? [] : ["src/mcp.ts", "src/mcp-stdio.ts"],
+  );
   if (!includeWeb) {
     await rm(path.join(outDir, "web"), { recursive: true, force: true });
   }
@@ -182,7 +221,6 @@ export async function exportCommand(cwd: string, options: ExportOptions): Promis
   await writeFile(path.join(outDir, "harness.lock.json"), `${JSON.stringify(lock, null, 2)}\n`, "utf8");
 
   ui.ok(`Exported to ${outDir}`);
-  if (options.mcp !== false) ui.info("MCP server is not included yet (Phase 7).");
   ui.info("Next: cd export && npm install && npm run build && npm start");
   ui.info("Or: cd export && docker compose up --build");
   return 0;

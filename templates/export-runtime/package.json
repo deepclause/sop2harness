@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^0.85.1",
-    "deepclause-sdk": "0.0.89"__AGENTVM_DEP__
+    "deepclause-sdk": "0.0.89"__AGENTVM_DEP____MCP_DEP__
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
