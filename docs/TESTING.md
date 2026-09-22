@@ -15,6 +15,7 @@ tests/
   request.test.ts    authoring request construction
   create.test.ts     create command guards
   commit.test.ts     version bump, git commit/tag, versions.json recording
+  export.test.ts     export skeleton generation and guard rails
 ```
 
 ## What is covered
@@ -35,6 +36,8 @@ tests/
 - **Commit** — dry-run makes no changes; a real commit bumps the harness
   version, creates the tag, records the real content-commit hash in
   `.s2h/versions.json`, and leaves the working tree clean.
+- **Export** — generates the server/harness skeleton and `harness.lock.json`,
+  and refuses harnesses that declare shell execution in Phase 4.
 
 ## Future phases
 

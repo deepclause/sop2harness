@@ -5,6 +5,7 @@ Command and flag reference for `s2h`.
 Status note: Phase 1 implemented `init`, `check`, `list`, and `status`.
 Phase 2 implemented `create` (SOP ingestion + pi authoring session + validation).
 Phase 3 implemented `commit` (semver bump, git commit/tag, version history).
+Phase 4 implemented `export` (standalone API server generation).
 The remaining commands are wired into the CLI with their documented options but
 report "not implemented yet" until their roadmap phase lands.
 
@@ -111,6 +112,51 @@ Flow:
 The authoring session recorded by `create` is referenced from the version entry
 when available.
 
+## `s2h export`
+
+```
+s2h export [--out <dir>] [--llm pi] [--sandbox none] [--no-mcp] [--no-web]
+           [--allow-effects] [--port <n>]
+```
+
+Generates a standalone TypeScript API server plus a read-only copy of the
+harness into the output directory (default `./export`).
+
+Generated layout:
+
+```
+export/
+  package.json          deepclause-sdk + pi-ai deps
+  tsconfig.json
+  src/
+    server.ts           node:http API + SSE
+    runtime.ts          deepclause-sdk wiring, sessions, cancellation
+    backend.ts          bundled pi-ai LLM backend (mock backend via env)
+    tools.ts            PHTC tools + path confinement
+    harness.ts          manifest load + skill discovery
+    router.ts           trigger routing
+  harness/              copy of the committed harness (read-only at runtime)
+  .env.example
+  README.md
+  harness.lock.json     s2h/sdk versions + harness content hash
+```
+
+Endpoints: `/healthz`, `/api/harness`, `/api/skills`, `/api/docs`,
+`/api/docs/:name`, `POST /api/chat` (SSE), `POST /api/sessions/:id/input`,
+`POST /api/sessions/:id/cancel`, `DELETE /api/sessions/:id`.
+
+| Flag | Effect |
+| --- | --- |
+| `--out <dir>` | Output directory. Defaults to `./export`. |
+| `--llm <backend>` | `pi` is implemented; `openai-compatible` is a later phase. |
+| `--sandbox <provider>` | `none` is implemented; `agentvm` is Phase 6. |
+| `--no-mcp` / `--no-web` | Accepted; MCP is Phase 7 and web chat is Phase 5. |
+| `--allow-effects` | Required when any skill declares `effects` other than `none`. |
+| `--port <n>` | Recorded in the generated `.env.example`. |
+
+Phase 4 does not yet implement tagged exports (`--tag`), web chat, Docker,
+AgentVM sandbox, or the MCP surface.
+
 ## `s2h check`
 
 ```
@@ -157,7 +203,6 @@ working-tree state, and the last committed version.
 
 | Command | Roadmap phase | Status |
 | --- | --- | --- |
-| `s2h export` | 4 | stub |
 | `s2h run` | 4 | stub |
 | `s2h config` | planned helper | stub |
 | `s2h doctor` | planned helper | stub |

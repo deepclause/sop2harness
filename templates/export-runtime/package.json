@@ -1,0 +1,20 @@
+{
+  "name": "s2h-export",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "^0.85.1",
+    "deepclause-sdk": "0.0.89"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

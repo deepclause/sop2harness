@@ -8,6 +8,7 @@ import { listCommand } from "./commands/list.js";
 import { statusCommand } from "./commands/status.js";
 import { createCommand } from "./commands/create.js";
 import { commitCommand } from "./commands/commit.js";
+import { exportCommand } from "./commands/export.js";
 import * as ui from "./ui.js";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
@@ -123,8 +124,28 @@ program
   .option("--no-web", "omit the web chat app")
   .option("--allow-effects", "allow skills that declare effects")
   .option("--port <n>", "default port")
-  .action(() => {
-    process.exitCode = stub("export", "Phase 4");
+  .action(async (options: {
+    out?: string;
+    tag?: string;
+    llm?: string;
+    sandbox?: string;
+    mcp?: boolean;
+    web?: boolean;
+    allowEffects?: boolean;
+    port?: string;
+  }) => {
+    await run(() =>
+      exportCommand(process.cwd(), {
+        out: options.out,
+        tag: options.tag,
+        llm: options.llm,
+        sandbox: options.sandbox,
+        mcp: options.mcp,
+        web: options.web,
+        allowEffects: options.allowEffects,
+        port: options.port,
+      }),
+    );
   });
 
 program

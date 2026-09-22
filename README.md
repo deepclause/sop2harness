@@ -15,9 +15,9 @@ When a harness declares shell steps, they run inside the opt-in
 **deepclause-agentvm** WASM Linux sandbox (network off by default). Decisions are
 recorded in [docs/DECISIONS/](docs/DECISIONS/).
 
-> Status: **Phases 1–3 implemented.** `init`, `check`, `list`, `status`,
-> `create`, and `commit` are working; `export` is next. Start with the design
-> docs.
+> Status: **Phases 1–4 implemented.** `init`, `check`, `list`, `status`,
+> `create`, `commit`, and `export` are working; web chat, Docker, sandbox, and
+> MCP follow. Start with the design docs.
 
 ## Commands (target)
 
