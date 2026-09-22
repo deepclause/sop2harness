@@ -181,6 +181,12 @@ Streamable HTTP at `S2H_MCP_PATH` (default `/mcp`) plus a stdio entrypoint
 Phase 7 does not yet implement tagged exports (`--tag`) or the
 `openai-compatible` backend; those remain later phases.
 
+Judge backends mirror the harness `judgment` block: `llm` wraps the active
+model backend (uncalibrated), and `jev` (TypeSafe System One) is registered
+only when `judgment.jev.enabled` is true and the key named by
+`judgment.jev.apiKeyEnv` (default `TYPESAFE_API_KEY`) is present. If the
+harness requests `jev` without a key, the runtime falls back to `llm`.
+
 ## `s2h check`
 
 ```

@@ -1,6 +1,6 @@
 import path from "node:path";
-import { createDeepClause } from "deepclause-sdk";
-import type { DeepClauseSDK, DMLEvent } from "deepclause-sdk";
+import { createDeepClause, createJevJudgeBackend, createLLMJudgeBackend } from "deepclause-sdk";
+import type { DeepClauseSDK, DMLEvent, JudgeBackend } from "deepclause-sdk";
 import { createBackend } from "./backend.js";
 import { harnessRoot, loadManifest, loadSkillSource } from "./harness.js";
 import { registerHarnessTools } from "./tools.js";
@@ -78,11 +78,28 @@ function sessionSdk(session: Session): Promise<DeepClauseSDK> {
 async function createSessionSdk(session: Session): Promise<DeepClauseSDK> {
   const manifest = await loadManifest();
   const backend = createBackend(process.env.S2H_LLM_BACKEND?.trim() || "pi");
+  const modelId = process.env.S2H_LLM_MODEL?.trim() || "gpt-4o-mini";
+
+  const judgeBackends: Record<string, JudgeBackend> = {
+    llm: createLLMJudgeBackend({ llmBackend: backend, model: modelId }),
+  };
+  const jev = manifest.judgment?.jev;
+  if (jev?.enabled) {
+    const apiKey = process.env[jev.apiKeyEnv];
+    if (apiKey) {
+      judgeBackends.jev = createJevJudgeBackend({ apiKey, model: jev.model });
+    }
+  }
+  const requestedJudge = manifest.judgment?.default ?? "llm";
+  const defaultJudge = judgeBackends[requestedJudge] ? requestedJudge : "llm";
+
   const sdk = await createDeepClause({
-    model: process.env.S2H_LLM_MODEL?.trim() || "gpt-4o-mini",
+    model: modelId,
     maxTokens: manifest.runtime.maxTokens,
     streaming: true,
     llmBackend: backend,
+    judgeBackends,
+    defaultJudge,
   });
 
   const shellNeeded = manifest.runtime.tools.includes("bash") || manifest.runtime.compat.includes("pi_bash");
