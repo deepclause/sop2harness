@@ -19,3 +19,6 @@ export/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Local VC materials (kept out of the repo and the npm package)
+docs/vc/

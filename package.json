@@ -1,9 +1,30 @@
 {
-  "name": "sop2harness",
-  "version": "0.1.0",
-  "description": "Turn Standard Operating Procedures into a runnable, versioned DeepClause DML harness.",
+  "name": "deepclause-sop2harness",
+  "version": "0.0.1",
+  "description": "sop2harness (s2h): turn SOPs into versioned, exportable DeepClause DML harnesses.",
   "type": "module",
   "license": "MIT",
+  "author": "DeepClause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deepclause/sop2harness.git"
+  },
+  "bugs": {
+    "url": "https://github.com/deepclause/sop2harness/issues"
+  },
+  "homepage": "https://github.com/deepclause/sop2harness#readme",
+  "keywords": [
+    "deepclause",
+    "sop",
+    "sop2harness",
+    "dml",
+    "harness",
+    "agent",
+    "llm",
+    "cli",
+    "prolog",
+    "neurosymbolic"
+  ],
   "bin": {
     "s2h": "./dist/cli.js"
   },
@@ -11,10 +32,13 @@
     "dist",
     "templates",
     "skills",
-    "docs"
+    "docs/*.md",
+    "docs/DECISIONS",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -22,6 +46,9 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@clack/prompts": "^0.10.0",
