@@ -19,6 +19,17 @@ Phases 1–7 are implemented: `init`, `check`, `list`, `status`, `create`,
 `commit`, `export`, plus the export's web chat, Docker image, AgentVM sandbox,
 and MCP server. Hardening is ongoing.
 
+## Install
+
+The npm package is `deepclause-sop2harness`; the command is `s2h`.
+
+```bash
+npm install -g deepclause-sop2harness   # installs the s2h command
+s2h --version
+```
+
+Without installing, run it with `npx deepclause-sop2harness --help`.
+
 ## Quick start
 
 ```bash

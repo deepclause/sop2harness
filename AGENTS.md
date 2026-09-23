@@ -26,9 +26,10 @@ single entry point to the project's design.
 | Document | Description | Status |
 | --- | --- | --- |
 | [README.md](README.md) | Project overview and command sketch | current |
+| [CHANGELOG.md](CHANGELOG.md) | Release history | current |
 | [AGENTS.md](AGENTS.md) | This working guide and documentation index | current |
 | [docs/DESIGN.md](docs/DESIGN.md) | Vision, goals, architecture, CLI, flows, security, roadmap, open questions | current |
-| [docs/CLI.md](docs/CLI.md) | Command and flag reference (`init`, `check`, `list`, `status` implemented in Phase 1) | current |
+| [docs/CLI.md](docs/CLI.md) | Command and flag reference | current |
 | [docs/TESTING.md](docs/TESTING.md) | Unit/integration test layout and how to run the suite | current |
 | [docs/HARNESS_FORMAT.md](docs/HARNESS_FORMAT.md) | Harness project layout, `harness.json` schema, DML conventions, runtime tool contract | current |
 | [docs/EXPORT_RUNTIME.md](docs/EXPORT_RUNTIME.md) | Exported API, web chat, Docker image, configuration and security | current |
@@ -107,16 +108,29 @@ These are binding for the design unless superseded by a new ADR:
 
 ```
 sop2harness/
+  package.json         # npm package: deepclause-sop2harness (bin: s2h)
+  tsconfig.json
   README.md
+  CHANGELOG.md
+  LICENSE
   AGENTS.md            # this file: working guide + documentation index
+  src/
+    cli.ts             # commander entry point
+    commands/          # init, check, list, status, create, commit, export, test
+    authoring/         # SOP ingestion, authoring request, pi session embedding
+    deepclause/        # deepclause-pi asset seeding
+    harness/           # manifest, paths, router, semver, validate, confine
+  templates/
+    init/              # files seeded by `s2h init`
+    export-runtime/    # generated API + web chat + MCP + Docker runtime
+  skills/s2h-authoring/  # skill shipped to the authoring session
+  examples/            # sample harnesses (refund-desk, who-anc)
   docs/
     DESIGN.md
+    CLI.md
     HARNESS_FORMAT.md
     EXPORT_RUNTIME.md
-  # implementation added later:
-  # src/               CLI (init/create/commit/export)
-  # src/authoring/      pi session embedding + SOP ingestion
-  # src/export/         export generator + runtime templates
-  # templates/          Dockerfile, web app, server templates
-  # tests/              unit + integration + golden + docker smoke
+    TESTING.md
+    DECISIONS/
+  tests/               # unit + integration tests
 ```

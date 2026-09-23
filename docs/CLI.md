@@ -2,6 +2,9 @@
 
 Command and flag reference for `s2h`.
 
+Install: `npm install -g deepclause-sop2harness` (the npm package is
+`deepclause-sop2harness`; the command is `s2h`).
+
 Status note: Phase 1 implemented `init`, `check`, `list`, and `status`.
 Phase 2 implemented `create` (SOP ingestion + pi authoring session + validation).
 Phase 3 implemented `commit` (semver bump, git commit/tag, version history).
@@ -9,6 +12,8 @@ Phase 4 implemented `export` (standalone API server generation).
 Phase 5 implemented the exported web chat app and Docker image.
 Phase 6 implemented the AgentVM sandbox for exported shell steps.
 Phase 7 implemented the MCP server (per-skill tools + usage prompt).
+The `test` helper (validate + diagram inspection + smoke runs) is implemented as
+well.
 The remaining commands are wired into the CLI with their documented options but
 report "not implemented yet" until their roadmap phase lands.
 
@@ -83,6 +88,26 @@ Flow:
 | `--debug` | Reserved for verbose authoring output. |
 
 `create` leaves generated files in place for inspection when validation fails.
+
+## `s2h test`
+
+```
+s2h test [--skill <id>] [--input <text>] [--mock] [--live] [--no-run]
+         [--model <provider/id>]
+```
+
+Validates the harness, inspects the generated diagrams, and smoke-runs each
+skill. Runs use the deterministic mock backend by default; `--live` uses a real
+pi model.
+
+| Flag | Effect |
+| --- | --- |
+| `--skill <id>` | Test a single skill. |
+| `--input <text>` | Request text for the smoke run (defaults to the skill's first trigger). |
+| `--mock` | Use the deterministic mock model backend (default). |
+| `--live` | Use a real pi model backend. |
+| `--no-run` | Validate and inspect diagrams only; skip smoke runs. |
+| `--model <provider/id>` | Model for `--live` runs. |
 
 ## `s2h commit`
 
